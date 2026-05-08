@@ -10,6 +10,7 @@
     "dev": "node server.js",
     "start": "node server.js",
     "sync:shopify": "node scripts/sync-shopify-catalog.js",
+    "register:shop": "node scripts/register-shop.js",
     "setup:db": "node scripts/setup-db.js"
   }
 }

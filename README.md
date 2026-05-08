@@ -45,6 +45,38 @@ $env:OPENAI_MODEL="gpt-5.4-mini"
 npm run dev
 ```
 
+## Multi-Shop Setup
+
+AI Concierge is designed to support multiple Shopify stores from one Render app. Each store gets its own shop record and product catalog in Postgres.
+
+Register each shop after setting `DATABASE_URL` on Render:
+
+```bash
+npm run register:shop -- --shop=first-store.myshopify.com --token=shpat_first_token --name="Business IT Advisor" --market=business --assistant="Business IT Advisor"
+npm run register:shop -- --shop=second-store.myshopify.com --token=shpat_second_token --name="Home Tech Concierge" --market=consumer --assistant="Home Tech Concierge"
+```
+
+Then sync one shop:
+
+```bash
+npm run sync:shopify -- --shop=first-store.myshopify.com
+```
+
+Or sync all registered shops:
+
+```bash
+npm run sync:shopify
+```
+
+Each storefront should load the assistant with its shop domain:
+
+```html
+<iframe
+  src="https://your-render-url.onrender.com?shop=first-store.myshopify.com"
+  style="width: 100%; height: 800px; border: 0;"
+></iframe>
+```
+
 ## Shopify Catalog Sync
 
 Do not put your full catalog in `script.js`. The frontend calls the backend, and the backend loads `data/catalog-cache.json`. If that cache does not exist yet, it falls back to the small demo catalog.
@@ -60,7 +92,7 @@ npm run sync:shopify
 
 The sync script pulls active Shopify products with variants, prices, inventory, tags, vendor, type, descriptions, and featured images, then writes `data/catalog-cache.json`.
 
-If `DATABASE_URL` is set, the same sync writes products into Postgres instead of the local JSON cache. Render will provide `DATABASE_URL` automatically if you deploy with `render.yaml`.
+If `DATABASE_URL` is set, the same sync writes products into Postgres instead of the local JSON cache. Render will provide `DATABASE_URL` automatically if you deploy with `render.yaml`. Product rows are stored per `shop_domain`.
 
 For automatic updates, register these Shopify webhooks against your deployed app URL:
 
@@ -86,21 +118,20 @@ In Render:
 4. Render will read `render.yaml` and create the web service plus database.
 5. Add these secret environment variables on the web service:
    - `OPENAI_API_KEY`
-   - `SHOPIFY_SHOP`
-   - `SHOPIFY_ADMIN_ACCESS_TOKEN`
    - `SHOPIFY_WEBHOOK_SECRET`
 6. After deploy, open the service shell or run a one-off job with:
 
 ```bash
-npm run sync:shopify
+npm run register:shop -- --shop=your-store.myshopify.com --token=your_admin_api_token --name="Store Assistant"
+npm run sync:shopify -- --shop=your-store.myshopify.com
 ```
 
-That initial sync loads the 4,000+ product catalog into Postgres. After that, product webhooks keep it updated automatically.
+That initial sync loads the 4,000+ product catalog into Postgres for that shop. Repeat the register/sync commands for each Shopify store. After that, product webhooks keep each shop updated automatically.
 
 ## Next Shopify Integration Steps
 
 1. Deploy the backend so Shopify can reach the webhook URLs.
-2. Register the product webhooks in a Shopify custom app or public app.
+2. Register the product webhooks in each Shopify custom app or public app.
 3. Add richer product attributes for electronics, such as RAM, CPU, storage, GPU, wattage, compatibility, and warranty.
 4. Use OpenAI tool calling so the assistant can call `search_products`, `compare_products`, and `add_to_cart`.
 5. Replace the demo cart handler with Shopify Storefront API cart mutations.

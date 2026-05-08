@@ -2,7 +2,14 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadCatalog, removeCatalogProduct, upsertCatalogProduct } from "./lib/catalog-store.js";
+import {
+  getShop,
+  listShops,
+  loadCatalog,
+  normalizeShopDomain,
+  removeCatalogProduct,
+  upsertCatalogProduct
+} from "./lib/catalog-store.js";
 import { createOpenAIRecommendation } from "./lib/openai.js";
 import { needsClarification, recommendProducts } from "./lib/recommendations.js";
 import { normalizeWebhookProduct, verifyShopifyWebhook } from "./lib/shopify.js";
@@ -57,24 +64,34 @@ async function serveStatic(request, response) {
 
 async function handleApi(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
+  const requestedShop = normalizeShopDomain(url.searchParams.get("shop") || request.headers["x-shop-domain"] || "demo");
+
+  if (request.method === "GET" && url.pathname === "/api/shops") {
+    sendJson(response, 200, { shops: await listShops() });
+    return;
+  }
 
   if (request.method === "GET" && url.pathname === "/api/products") {
-    const products = await loadCatalog();
-    sendJson(response, 200, { products });
+    const products = await loadCatalog(requestedShop);
+    const shop = await getShop(requestedShop);
+    sendJson(response, 200, { shop, products });
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/api/chat") {
-    const { message } = await readJson(request);
+    const { message, shop } = await readJson(request);
+    const shopDomain = normalizeShopDomain(shop || requestedShop);
     if (!message || typeof message !== "string") {
       sendJson(response, 400, { error: "Message is required." });
       return;
     }
 
-    const products = await loadCatalog();
+    const products = await loadCatalog(shopDomain);
+    const shopConfig = await getShop(shopDomain);
     const clarification = needsClarification(message);
     if (clarification.shouldClarify) {
       sendJson(response, 200, {
+        shop: shopConfig,
         type: "clarification",
         message: `I can help with that. ${clarification.questions.join(" ")} Once I have that, I’ll recommend only in-stock products and explain the tradeoffs.`,
         recommendations: []
@@ -87,6 +104,7 @@ async function handleApi(request, response) {
     try {
       const openaiResponse = await createOpenAIRecommendation({ message, products: recommendations });
       sendJson(response, 200, {
+        shop: shopConfig,
         type: "recommendations",
         source: openaiResponse ? "openai" : "local",
         message:
@@ -96,6 +114,7 @@ async function handleApi(request, response) {
       });
     } catch (error) {
       sendJson(response, 200, {
+        shop: shopConfig,
         type: "recommendations",
         source: "local",
         message:
@@ -108,8 +127,9 @@ async function handleApi(request, response) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/cart") {
-    const { variantId, quantity = 1 } = await readJson(request);
-    const products = await loadCatalog();
+    const { variantId, quantity = 1, shop } = await readJson(request);
+    const shopDomain = normalizeShopDomain(shop || requestedShop);
+    const products = await loadCatalog(shopDomain);
     const product = products.find((item) => item.variantId === variantId);
 
     if (!product) {
@@ -117,10 +137,11 @@ async function handleApi(request, response) {
       return;
     }
 
-    demoCart.push({ variantId, quantity });
+    demoCart.push({ shopDomain, variantId, quantity });
+    const shopCart = demoCart.filter((line) => line.shopDomain === shopDomain);
     sendJson(response, 200, {
-      cart: demoCart,
-      count: demoCart.reduce((total, line) => total + line.quantity, 0),
+      cart: shopCart,
+      count: shopCart.reduce((total, line) => total + line.quantity, 0),
       product,
       shopifyReady: {
         mutation: "cartLinesAdd",
@@ -137,6 +158,7 @@ async function handleApi(request, response) {
   ) {
     const rawBody = await readRawBody(request);
     const hmac = request.headers["x-shopify-hmac-sha256"];
+    const webhookShop = normalizeShopDomain(request.headers["x-shopify-shop-domain"] || requestedShop);
 
     if (!verifyShopifyWebhook(rawBody, hmac)) {
       sendJson(response, 401, { error: "Invalid Shopify webhook signature." });
@@ -149,14 +171,15 @@ async function handleApi(request, response) {
       return;
     }
 
-    await upsertCatalogProduct(product);
-    sendJson(response, 200, { ok: true, productId: product.id });
+    await upsertCatalogProduct(product, webhookShop);
+    sendJson(response, 200, { ok: true, shop: webhookShop, productId: product.id });
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/api/shopify/webhooks/products/delete") {
     const rawBody = await readRawBody(request);
     const hmac = request.headers["x-shopify-hmac-sha256"];
+    const webhookShop = normalizeShopDomain(request.headers["x-shopify-shop-domain"] || requestedShop);
 
     if (!verifyShopifyWebhook(rawBody, hmac)) {
       sendJson(response, 401, { error: "Invalid Shopify webhook signature." });
@@ -165,8 +188,8 @@ async function handleApi(request, response) {
 
     const deletedProduct = JSON.parse(rawBody.toString("utf8"));
     const productId = `gid://shopify/Product/${deletedProduct.id}`;
-    await removeCatalogProduct(productId);
-    sendJson(response, 200, { ok: true, productId });
+    await removeCatalogProduct(productId, webhookShop);
+    sendJson(response, 200, { ok: true, shop: webhookShop, productId });
     return;
   }
 

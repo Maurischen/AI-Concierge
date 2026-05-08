@@ -1,4 +1,5 @@
 const state = {
+  shopDomain: new URLSearchParams(window.location.search).get("shop") || document.currentScript?.dataset.shop || "demo",
   products: [],
   cartCount: 0,
   lastRecommendations: []
@@ -28,12 +29,18 @@ function escapeHtml(value) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
+  const url = new URL(path, window.location.origin);
+  if (!url.searchParams.has("shop")) {
+    url.searchParams.set("shop", state.shopDomain);
+  }
+
+  const response = await fetch(url, {
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {})
     },
-    ...options
+    ...options,
+    body: options.body
   });
 
   const payload = await response.json();
@@ -126,7 +133,7 @@ async function handleCustomerNeed(text) {
   try {
     const payload = await api("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text, shop: state.shopDomain })
     });
 
     messages.querySelector(".typing")?.closest(".message")?.remove();
@@ -141,7 +148,7 @@ async function addToCart(variantId) {
   try {
     const payload = await api("/api/cart", {
       method: "POST",
-      body: JSON.stringify({ variantId, quantity: 1 })
+      body: JSON.stringify({ variantId, quantity: 1, shop: state.shopDomain })
     });
 
     state.cartCount = payload.count;
@@ -183,6 +190,12 @@ form.addEventListener("submit", (event) => {
 
 async function init() {
   const payload = await api("/api/products");
+  if (payload.shop?.assistantName) {
+    document.querySelector(".chat-header h2").textContent = payload.shop.assistantName;
+  }
+  if (payload.shop?.themeColor) {
+    document.documentElement.style.setProperty("--accent", payload.shop.themeColor);
+  }
   state.products = payload.products;
   renderCatalog();
   addMessage(
