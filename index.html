@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Concierge</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="product-floor" aria-label="Storefront product area">
+        <header class="store-header">
+          <div>
+            <p class="eyebrow">Shopify AI assistant</p>
+            <h1>AI Concierge</h1>
+          </div>
+          <div class="cart-pill" aria-live="polite">
+            <span id="cart-count">0</span>
+            <span>items</span>
+          </div>
+        </header>
+
+        <section class="catalog-grid" id="catalog-grid" aria-label="Available stock"></section>
+      </section>
+
+      <aside class="concierge" aria-label="AI shopping concierge">
+        <div class="chat-header">
+          <div>
+            <p class="eyebrow">Live guidance</p>
+            <h2>Find the right gear</h2>
+          </div>
+          <span class="status-dot">Online</span>
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite"></div>
+
+        <div class="quick-prompts" aria-label="Example prompts">
+          <button type="button" data-prompt="I need a laptop for gaming and design under $1500">Gaming + design</button>
+          <button type="button" data-prompt="I need a reliable home office setup">Home office</button>
+          <button type="button" data-prompt="Recommend accessories for a new laptop">Accessories</button>
+        </div>
+
+        <form class="composer" id="chat-form">
+          <label class="sr-only" for="chat-input">Tell the concierge what you need</label>
+          <textarea id="chat-input" rows="2" placeholder="Tell me what you need, your budget, and how you'll use it..."></textarea>
+          <button type="submit">Send</button>
+        </form>
+      </aside>
+    </main>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
