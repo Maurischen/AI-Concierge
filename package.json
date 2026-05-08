@@ -1,0 +1,15 @@
+{
+  "name": "ai-concierge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "sync:shopify": "node scripts/sync-shopify-catalog.js",
+    "setup:db": "node scripts/setup-db.js"
+  }
+}
