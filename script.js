@@ -5,7 +5,10 @@ const state = {
   lastRecommendations: [],
   conversation: [],
   customerLocation: null,
-  shoppingIntent: null
+  shoppingIntent: null,
+  customerName: sessionStorage.getItem("aiConciergeCustomerName") || "",
+  awaitingName: !sessionStorage.getItem("aiConciergeCustomerName"),
+  loadingMessageIndex: 0
 };
 
 const catalogGrid = document.querySelector("#catalog-grid");
@@ -13,6 +16,22 @@ const messages = document.querySelector("#messages");
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#chat-input");
 const cartCount = document.querySelector("#cart-count");
+
+const loadingMessages = [
+  "Checking live stock and matching the details...",
+  "Comparing options against your must-haves...",
+  "Looking for the best fit in the current catalogue...",
+  "Checking specs, stock, and compatibility...",
+  "Scanning for close matches and avoiding the wrong kind of product..."
+];
+
+const personalityTips = [
+  "Quick tip: exact model numbers help me avoid almost-right accessories.",
+  "Quick tip: if size matters, tell me the exact size or say “at least” for larger options.",
+  "Quick tip: for upgrades, tell me the socket, connector, or form factor when you know it.",
+  "Quick tip: if you prefer a brand, name it and I’ll prioritise it where stock allows.",
+  "Quick tip: you can ask for nearby store stock once locations are live."
+];
 
 function money(value) {
   return new Intl.NumberFormat("en-US", {
@@ -29,6 +48,28 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function firstNameFrom(text) {
+  const cleaned = String(text || "")
+    .trim()
+    .replace(/^(my name is|i am|i'm|im|name is|this is)\s+/i, "")
+    .replace(/[^a-zA-Z '-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const firstName = cleaned.split(" ")[0] || "";
+  return firstName.length >= 2 ? firstName.slice(0, 30) : "";
+}
+
+function greetingPrefix() {
+  return state.customerName ? `${state.customerName}, ` : "";
+}
+
+function nextLoadingMessage() {
+  const message = loadingMessages[state.loadingMessageIndex % loadingMessages.length];
+  const tip = personalityTips[state.loadingMessageIndex % personalityTips.length];
+  state.loadingMessageIndex += 1;
+  return `${greetingPrefix()}${message}<br><span class="source-note">${tip}</span>`;
 }
 
 async function api(path, options = {}) {
@@ -90,7 +131,7 @@ function addMessage(role, content) {
 
 function renderRecommendations(payload, originalText) {
   if (payload.type === "clarification") {
-    addMessage("ai", `<p>${escapeHtml(payload.message)}</p>`);
+    addMessage("ai", `<p>${escapeHtml(greetingPrefix())}${escapeHtml(payload.message)}</p>`);
     return;
   }
 
@@ -132,7 +173,7 @@ function renderRecommendations(payload, originalText) {
   const sourceNote = payload.source === "openai" ? "AI-assisted recommendation." : "Local product matcher.";
   addMessage(
     "ai",
-    `<p>${escapeHtml(payload.message)}</p><div class="recommendations">${cards}</div><p>${escapeHtml(followUp)}</p><p class="source-note">${escapeHtml(sourceNote)}</p>`
+    `<p>${escapeHtml(greetingPrefix())}${escapeHtml(payload.message)}</p><div class="recommendations">${cards}</div><p>${escapeHtml(followUp)}</p><p class="source-note">${escapeHtml(sourceNote)}</p>`
   );
 
   state.lastRecommendations = items;
@@ -170,8 +211,25 @@ function getBrowserLocation() {
 
 async function handleCustomerNeed(text) {
   addMessage("user", `<p>${escapeHtml(text)}</p>`);
+
+  if (state.awaitingName) {
+    const name = firstNameFrom(text);
+    if (name) {
+      state.customerName = name;
+      state.awaitingName = false;
+      sessionStorage.setItem("aiConciergeCustomerName", name);
+      addMessage(
+        "ai",
+        `<p>Great to meet you, ${escapeHtml(name)}. Tell me what you’re looking for, any must-haves, and whether you have a budget in mind.</p><p class="source-note">${escapeHtml(personalityTips[0])}</p>`
+      );
+    } else {
+      addMessage("ai", "<p>What should I call you while we shop?</p>");
+    }
+    return;
+  }
+
   state.conversation.push({ role: "user", content: text });
-  addMessage("ai", '<p class="typing">Checking current stock and fit...</p>');
+  addMessage("ai", `<p class="typing">${nextLoadingMessage()}</p>`);
 
   try {
     if (wantsNearbyStore(text) && !state.customerLocation) {
@@ -259,7 +317,9 @@ async function init() {
   renderCatalog();
   addMessage(
     "ai",
-    "<p>Hi, I’m your AI Concierge. Tell me what you’re trying to do, your budget, and any must-haves. I’ll recommend products from available stock and explain why they fit.</p>"
+    state.awaitingName
+      ? "<p>Hi, I’m your AI Concierge. What should I call you while we shop?</p>"
+      : `<p>Welcome back, ${escapeHtml(state.customerName)}. Tell me what you’re looking for, your budget, and any must-haves. I’ll recommend products from available stock and explain why they fit.</p>`
   );
 }
 
