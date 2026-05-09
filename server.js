@@ -57,6 +57,12 @@ function extractBudget(text) {
   return match ? match[1] : null;
 }
 
+function budgetIsOpen(text) {
+  return /\b(i don'?t have a budget|i don'?t know|not sure|no budget|without a budget|any budget|show me|what is available|what'?s available|what is in stock|what'?s in stock|available stock)\b/i.test(
+    text
+  );
+}
+
 function extractIntentSpecs(text) {
   const terms = String(text).toLowerCase();
   const specs = [];
@@ -103,11 +109,13 @@ function updateShoppingIntent(previousIntent, message) {
   const sizes = extractSizes(latest);
   const brands = extractBrandsFromText(latest);
   const budget = extractBudget(latest) || previousIntent?.budget || null;
+  const openBudget = budgetIsOpen(latest) || (!budget && previousIntent?.openBudget === true);
   const replacesSpecs = /\b(instead|rather|change|changed|different|other|now|actually)\b/i.test(latest);
 
   return {
     productType,
     budget,
+    openBudget,
     specs: specs.length > 0 ? specs : replacesSpecs ? [] : previousIntent?.specs || [],
     sizes: sizes.length > 0 ? sizes : replacesSpecs ? [] : previousIntent?.sizes || [],
     brands: brands.length > 0 ? brands : previousIntent?.brands || []
@@ -121,7 +129,8 @@ function shoppingIntentToText(intent) {
     intent.specs?.join(" "),
     intent.productType,
     intent.brands?.length ? `preferred brands ${intent.brands.join(" or ")}` : null,
-    intent.budget ? `budget ${intent.budget}` : null
+    intent.budget ? `budget ${intent.budget}` : null,
+    intent.openBudget ? "show me what is in stock without a budget" : null
   ]
     .filter(Boolean)
     .join(" ");
