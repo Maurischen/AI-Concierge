@@ -47,6 +47,30 @@ const query = `#graphql
             inventoryQuantity
             inventoryItem {
               id
+              inventoryLevels(first: 50) {
+                nodes {
+                  location {
+                    id
+                    name
+                    fulfillsOnlineOrders
+                    isActive
+                    address {
+                      address1
+                      address2
+                      city
+                      province
+                      zip
+                      country
+                      latitude
+                      longitude
+                    }
+                  }
+                  quantities(names: ["available"]) {
+                    name
+                    quantity
+                  }
+                }
+              }
             }
           }
         }

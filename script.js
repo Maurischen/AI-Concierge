@@ -3,7 +3,8 @@ const state = {
   products: [],
   cartCount: 0,
   lastRecommendations: [],
-  conversation: []
+  conversation: [],
+  customerLocation: null
 };
 
 const catalogGrid = document.querySelector("#catalog-grid");
@@ -127,18 +128,52 @@ function renderRecommendations(payload, originalText) {
   renderCatalog(payload.recommendations.map((product) => product.variantId));
 }
 
+function wantsNearbyStore(text) {
+  return /\b(near me|nearest|closest|nearby|my location|closest store|nearest store)\b/i.test(text);
+}
+
+function getBrowserLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        });
+      },
+      () => resolve(null),
+      {
+        enableHighAccuracy: false,
+        maximumAge: 10 * 60 * 1000,
+        timeout: 8000
+      }
+    );
+  });
+}
+
 async function handleCustomerNeed(text) {
   addMessage("user", `<p>${escapeHtml(text)}</p>`);
   state.conversation.push({ role: "user", content: text });
   addMessage("ai", '<p class="typing">Checking current stock and fit...</p>');
 
   try {
+    if (wantsNearbyStore(text) && !state.customerLocation) {
+      state.customerLocation = await getBrowserLocation();
+    }
+
     const payload = await api("/api/chat", {
       method: "POST",
       body: JSON.stringify({
         message: text,
         shop: state.shopDomain,
-        history: state.conversation.slice(-6)
+        history: state.conversation.slice(-6),
+        customerLocation: state.customerLocation
       })
     });
 

@@ -7,6 +7,7 @@ This is a local storefront demo for a Shopify AI concierge. It has a small Node 
 - A storefront-style product grid backed by mock Shopify product and variant IDs.
 - A conversational concierge for electronics needs.
 - Stock-aware recommendation cards with reasons.
+- Location-aware inventory answers for store/branch availability.
 - Add-to-cart behavior that records selected variant IDs.
 - Backend API routes for product data, chat recommendations, and cart actions.
 - An OpenAI-ready backend integration that uses the local matcher when no API key is configured.
@@ -114,7 +115,7 @@ $env:SHOPIFY_API_VERSION="2026-01"
 npm run sync:shopify
 ```
 
-The sync script pulls active Shopify products with variants, prices, inventory, tags, vendor, type, descriptions, and featured images, then writes `data/catalog-cache.json`.
+The sync script pulls active Shopify products with variants, prices, customer-fulfillable inventory by location, tags, vendor, type, descriptions, and featured images, then writes `data/catalog-cache.json`.
 
 If `DATABASE_URL` is set, the same sync writes products into Postgres instead of the local JSON cache. Render will provide `DATABASE_URL` automatically if you deploy with `render.yaml`. Product rows are stored per `shop_domain`.
 
@@ -130,8 +131,18 @@ Set `SHOPIFY_WEBHOOK_SECRET` in production so webhook requests are verified befo
 Your Shopify app/custom app needs these Admin API scopes:
 
 ```text
-read_products,read_inventory
+read_products,read_inventory,read_locations
 ```
+
+`read_inventory` lets the app read inventory levels by variant. `read_locations` lets it read the location name/address attached to those inventory levels, which is what powers questions like "is this available at the Windhoek branch?" If you add `read_locations` after the app was already installed, reinstall or re-authorize the Shopify app/custom app token, update the token in Render, redeploy if needed, then run:
+
+Only active Shopify locations with `fulfillsOnlineOrders: true` are used for customer-facing availability, so supplier/internal locations are not shown as pickup or nearby store options.
+
+```bash
+npm run sync:shopify -- --shop=your-store.myshopify.com
+```
+
+For "closest store" questions, the browser can ask the customer for location permission on HTTPS. The app only sends latitude/longitude to the backend for that chat request and uses Shopify location coordinates to rank stocked branches by distance.
 
 ## Render Deployment
 

@@ -11,6 +11,7 @@ import {
   updateInventoryLevel,
   upsertCatalogProduct
 } from "./lib/catalog-store.js";
+import { applyLocationContext } from "./lib/locations.js";
 import { rankRecommendationsWithOpenAI } from "./lib/openai.js";
 import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts } from "./lib/recommendations.js";
 import { productMatchesRequestedIntents, requestedIntentNames } from "./lib/product-intents.js";
@@ -128,7 +129,7 @@ async function handleApi(request, response) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/chat") {
-    const { message, shop, history = [] } = await readJson(request);
+    const { message, shop, history = [], customerLocation = null } = await readJson(request);
     const shopDomain = normalizeShopDomain(shop || requestedShop);
     if (!message || typeof message !== "string") {
       sendJson(response, 400, { error: "Message is required." });
@@ -192,9 +193,17 @@ async function handleApi(request, response) {
       console.warn(`OpenAI ranking unavailable: ${error.message}`);
     }
 
+    const locationResult = applyLocationContext(recommendations, candidateRecommendations, products, userContext, customerLocation);
+    recommendations = locationResult.recommendations;
+
     const recommendationMessage =
       recommendations.length > 0
-        ? "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change."
+        ? [
+            "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change.",
+            locationResult.note
+          ]
+            .filter(Boolean)
+            .join(" ")
         : "I could not find a clear in-stock match for that request. Try widening the budget or checking that the matching products are tagged, collected, or metafielded clearly in Shopify.";
 
     sendJson(response, 200, {
@@ -290,6 +299,7 @@ async function handleApi(request, response) {
     const result = await updateInventoryLevel({
       shopDomain: webhookShop,
       inventoryItemId,
+      locationId: inventoryLevel.location_id ? `gid://shopify/Location/${inventoryLevel.location_id}` : null,
       available: inventoryLevel.available
     });
 
