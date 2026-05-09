@@ -11,7 +11,7 @@ import {
   updateInventoryLevel,
   upsertCatalogProduct
 } from "./lib/catalog-store.js";
-import { createOpenAIRecommendation } from "./lib/openai.js";
+import { rankRecommendationsWithOpenAI } from "./lib/openai.js";
 import { needsClarification, recommendProducts } from "./lib/recommendations.js";
 import { normalizeWebhookProduct, verifyShopifyWebhook } from "./lib/shopify.js";
 
@@ -107,37 +107,49 @@ async function handleApi(request, response) {
       return;
     }
 
-    const recommendations = recommendProducts(products, userContext, {
+    const candidateRecommendations = recommendProducts(products, userContext, {
       preferredBrands: shopConfig?.preferredBrands || {}
     });
-    const recommendationMessage =
-      recommendations.length > 0
-        ? "Here are the best matches from current stock. I’d lead with the first option unless your budget or portability needs change."
-        : "I could not find a clear in-stock match for that request. Try widening the budget or checking that the matching products are tagged, collected, or metafielded clearly in Shopify.";
+    let recommendations = candidateRecommendations.slice(0, 3);
+    let source = "local";
 
     try {
-      const openaiResponse = await createOpenAIRecommendation({ message: userContext, products: recommendations });
-      sendJson(response, 200, {
-        shop: shopConfig,
-        type: "recommendations",
-        source: openaiResponse ? "openai" : "local",
-        message: recommendationMessage,
-        recommendations,
-        openaiResponse
+      const aiRanking = await rankRecommendationsWithOpenAI({
+        message: userContext,
+        products: candidateRecommendations.slice(0, 12)
       });
+
+      if (aiRanking?.recommendations?.length > 0) {
+        const aiReasons = new Map(
+          aiRanking.recommendations.map((item) => [item.variantId, Array.isArray(item.reasons) ? item.reasons : []])
+        );
+        recommendations = aiRanking.recommendations
+          .map((item) => candidateRecommendations.find((product) => product.variantId === item.variantId))
+          .filter(Boolean)
+          .slice(0, 3)
+          .map((product) => ({
+            ...product,
+            reasons: aiReasons.get(product.variantId)?.length > 0 ? aiReasons.get(product.variantId).slice(0, 3) : product.reasons
+          }));
+        source = "openai";
+      }
     } catch (error) {
-      sendJson(response, 200, {
-        shop: shopConfig,
-        type: "recommendations",
-        source: "local",
-        message:
-          recommendations.length > 0
-            ? "Here are the best matches from current stock. The AI service was unavailable, so I used the local product matcher."
-            : recommendationMessage,
-        recommendations,
-        warning: error.message
-      });
+      source = "local";
+      console.warn(`OpenAI ranking unavailable: ${error.message}`);
     }
+
+    const recommendationMessage =
+      recommendations.length > 0
+        ? "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change."
+        : "I could not find a clear in-stock match for that request. Try widening the budget or checking that the matching products are tagged, collected, or metafielded clearly in Shopify.";
+
+    sendJson(response, 200, {
+      shop: shopConfig,
+      type: "recommendations",
+      source,
+      message: recommendationMessage,
+      recommendations
+    });
     return;
   }
 
