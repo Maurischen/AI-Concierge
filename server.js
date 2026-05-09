@@ -156,7 +156,10 @@ function updateShoppingIntent(previousIntent, message) {
   const productTypeChanged = latestProductType && previousIntent?.productType && latestProductType !== previousIntent.productType;
   const baseIntent = productTypeChanged ? null : previousIntent;
   const productType = latestProductType || baseIntent?.productType || null;
-  const specs = extractIntentSpecs(latest);
+  const latestSpecs = extractIntentSpecs(latest);
+  const specs = latestProductType === "ram" && baseIntent?.specs?.some((spec) => /^ddr[45]$/i.test(spec)) && !latestSpecs.some((spec) => /^ddr[45]$/i.test(spec))
+    ? [...baseIntent.specs, ...latestSpecs]
+    : latestSpecs;
   const sizes = extractSizes(latest);
   const modelTokens = extractModelTokens(latest);
   const deviceModel = extractDeviceModelPhrase(latest) || baseIntent?.deviceModel || "";
@@ -175,6 +178,13 @@ function updateShoppingIntent(previousIntent, message) {
     deviceModel,
     brands: brands.length > 0 ? brands : baseIntent?.brands || []
   };
+}
+
+function isCompatibilityUpgradeIntent(intent, text) {
+  return Boolean(
+    intent?.deviceModel ||
+      /\b(upgrade|compatible|work with|works with|for my|i have|existing|exact model)\b/i.test(text)
+  );
 }
 
 function shoppingIntentToText(intent) {
@@ -318,6 +328,9 @@ async function handleApi(request, response) {
 
     const products = await loadCatalog(shopDomain);
     const shopConfig = await getShop(shopDomain);
+    if (shopConfig && process.env.SALES_EMAIL) {
+      shopConfig.salesEmail = process.env.SALES_EMAIL;
+    }
     const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
     const intentContext = shoppingIntentToText(nextShoppingIntent);
     const baseUserContext = intentContext || buildUserContext(message, history);
@@ -385,6 +398,9 @@ async function handleApi(request, response) {
 
     const locationResult = applyLocationContext(recommendations, candidateRecommendations, products, userContext, customerLocation);
     recommendations = locationResult.recommendations;
+    if (isCompatibilityUpgradeIntent(nextShoppingIntent, message) && recommendations.length > 1) {
+      recommendations = recommendations.slice(0, 1);
+    }
     const suggestions = recommendations.length === 0 ? suggestSimilarProducts(products, userContext, 3) : [];
 
     const recommendationMessage =
@@ -392,6 +408,9 @@ async function handleApi(request, response) {
         ? [
             "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change.",
             webCompatibilityContext?.note || compatibilityContext.note,
+            isCompatibilityUpgradeIntent(nextShoppingIntent, message)
+              ? "Because this is a compatibility-sensitive upgrade, I’m only showing one safest match. If you’re unsure, send your exact model number to the sales team for a quote before buying."
+              : null,
             locationResult.note
           ]
             .filter(Boolean)
@@ -407,6 +426,7 @@ async function handleApi(request, response) {
       message: recommendationMessage,
       recommendations,
       suggestions,
+      compatibilitySensitive: isCompatibilityUpgradeIntent(nextShoppingIntent, message),
       webSources: webCompatibilityContext?.sources || [],
       shoppingIntent: nextShoppingIntent
     });

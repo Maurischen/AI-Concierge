@@ -16,6 +16,7 @@ const messages = document.querySelector("#messages");
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#chat-input");
 const cartCount = document.querySelector("#cart-count");
+const salesEmail = document.body.dataset.salesEmail || "sales@example.com";
 
 const loadingMessages = [
   "Doing the stock-room speedrun...",
@@ -242,12 +243,17 @@ function renderRecommendations(payload, originalText) {
     : "You can ask me to compare these, narrow by budget, or build a complete setup.";
 
   const sourceNote = payload.source === "openai" ? "AI-assisted recommendation." : "Local product matcher.";
+  const mailSubject = encodeURIComponent("Compatibility quote request");
+  const mailBody = encodeURIComponent(`Hi Sales Team,\n\nPlease help me confirm compatible options for:\n${originalText}\n\nExact model number:\n\nCurrent specs if known:\n\nThank you.`);
+  const salesLink = payload.compatibilitySensitive
+    ? `<p><a class="sales-link" href="mailto:${escapeHtml(salesEmail)}?subject=${mailSubject}&body=${mailBody}">Email sales with my exact model number</a></p>`
+    : "";
   const webSources = (payload.webSources || [])
     .map((source) => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title || source.url)}</a>`)
     .join(" · ");
   addMessage(
     "ai",
-    `<p>${escapeHtml(greetingPrefix())}${escapeHtml(payload.message)}</p><div class="recommendations">${cards}</div><p>${escapeHtml(followUp)}</p><p class="source-note">${escapeHtml(sourceNote)}</p>${webSources ? `<p class="source-note">Compatibility sources: ${webSources}</p>` : ""}`
+    `<p>${escapeHtml(greetingPrefix())}${escapeHtml(payload.message)}</p><div class="recommendations">${cards}</div>${salesLink}<p>${escapeHtml(followUp)}</p><p class="source-note">${escapeHtml(sourceNote)}</p>${webSources ? `<p class="source-note">Compatibility sources: ${webSources}</p>` : ""}`
   );
 
   state.lastRecommendations = items;
@@ -466,6 +472,9 @@ async function init() {
   }
   if (payload.shop?.themeColor) {
     document.documentElement.style.setProperty("--accent", payload.shop.themeColor);
+  }
+  if (payload.shop?.salesEmail) {
+    document.body.dataset.salesEmail = payload.shop.salesEmail;
   }
   state.products = payload.products;
   renderCatalog();
