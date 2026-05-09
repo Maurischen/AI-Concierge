@@ -3,7 +3,7 @@ import { normalizeAdminProduct, shopifyGraphql } from "../lib/shopify.js";
 
 const query = `#graphql
   query ProductsForConcierge($cursor: String) {
-    products(first: 25, after: $cursor, query: "status:active") {
+    products(first: 10, after: $cursor, query: "status:active") {
       pageInfo {
         hasNextPage
         endCursor
@@ -38,7 +38,7 @@ const query = `#graphql
             }
           }
         }
-        variants(first: 100) {
+        variants(first: 25) {
           nodes {
             id
             title
@@ -47,7 +47,7 @@ const query = `#graphql
             inventoryQuantity
             inventoryItem {
               id
-              inventoryLevels(first: 50) {
+              inventoryLevels(first: 10) {
                 nodes {
                   location {
                     id
