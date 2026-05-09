@@ -41,6 +41,7 @@ const query = `#graphql
         variants(first: 25) {
           nodes {
             id
+            legacyResourceId
             title
             sku
             price
