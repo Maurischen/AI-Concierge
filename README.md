@@ -56,6 +56,18 @@ npm run register:shop -- --shop=first-store.myshopify.com --token=shpat_first_to
 npm run register:shop -- --shop=second-store.myshopify.com --token=shpat_second_token --name="Home Tech Concierge" --market=consumer --assistant="Home Tech Concierge"
 ```
 
+You can also set preferred brands by category. These brands get boosted when the customer asks for a matching product type:
+
+```bash
+npm run register:shop -- --shop=first-store.myshopify.com --token=shpat_first_token --preferred-brands='{"cable":["UGreen"],"hub":["UGreen"],"adapter":["UGreen"],"bag":["Port Designs"]}'
+```
+
+On Render, if pasting JSON into the shell is awkward, add this as an environment variable and run `npm run register:shop` again:
+
+```text
+PREFERRED_BRANDS_JSON={"cable":["UGreen"],"hub":["UGreen"],"adapter":["UGreen"],"bag":["Port Designs"]}
+```
+
 Then sync one shop:
 
 ```bash

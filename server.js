@@ -107,7 +107,9 @@ async function handleApi(request, response) {
       return;
     }
 
-    const recommendations = recommendProducts(products, userContext);
+    const recommendations = recommendProducts(products, userContext, {
+      preferredBrands: shopConfig?.preferredBrands || {}
+    });
     const recommendationMessage =
       recommendations.length > 0
         ? "Here are the best matches from current stock. I’d lead with the first option unless your budget or portability needs change."
