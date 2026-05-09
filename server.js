@@ -13,6 +13,7 @@ import {
 } from "./lib/catalog-store.js";
 import { rankRecommendationsWithOpenAI } from "./lib/openai.js";
 import { isRelevantProductForRequest, needsClarification, recommendProducts } from "./lib/recommendations.js";
+import { productMatchesRequestedIntents, requestedIntentNames } from "./lib/product-intents.js";
 import { normalizeWebhookProduct, verifyShopifyWebhook } from "./lib/shopify.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
@@ -98,7 +99,10 @@ async function handleApi(request, response) {
         specs: product.specs,
         tags: product.tags,
         collections: product.collections,
-        metafields: product.metafields
+        metafields: product.metafields,
+        requestedIntents: requestedIntentNames(q),
+        matchesRequestedIntents: productMatchesRequestedIntents(product, q),
+        relevantForQuery: isRelevantProductForRequest(product, q)
       }));
 
     sendJson(response, 200, { query: q, count: matches.length, matches });
