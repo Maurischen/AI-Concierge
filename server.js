@@ -31,7 +31,7 @@ const contentTypes = {
 };
 
 const productTypePattern =
-  /\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|hard drive|flash drive|usb drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|ink|cartridge|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i;
+  /\b(cable|charger|power bank|powerbank|psu|power supply|power-supply|monitor|screen|display|ram|memory|ssd|hdd|hard drive|flash drive|usb drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|ink|cartridge|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i;
 
 function normalizeIntentText(value = "") {
   return String(value).trim().replace(/\s+/g, " ");
@@ -43,6 +43,7 @@ function extractProductType(text) {
   const type = match[1].toLowerCase();
   if (["screen", "display"].includes(type)) return "monitor";
   if (["powerbank"].includes(type)) return "power bank";
+  if (["power supply", "power-supply"].includes(type)) return "psu";
   if (["memory"].includes(type)) return "ram";
   if (["hard drive"].includes(type)) return "hdd";
   if (["usb drive"].includes(type)) return "flash drive";
@@ -88,6 +89,7 @@ function extractIntentSpecs(text) {
     /\b(cat\s?5e?|cat\s?6a?|cat\s?6|cat\s?7|cat\s?8)\b/g,
     /\b(8k|4k|uhd|qhd|fhd|1080p|1440p)\b/g,
     /\b(hdmi|vga|displayport|dp|usb[- ]?c|type[- ]?c|lightning|ethernet|lan)\b/g,
+    /\b(wireless|rechargeable|rechargable|chargeable|bluetooth|2\.4\s?ghz)\b/g,
     /\b(nvme|sata|m\.?2|2\.5|3\.5|ddr4|ddr5|am4|am5|lga\s?\d+|atx|m-atx|matx|itx)\b/g,
     /\b(\d{3,4}\s?w)\b/g
   ];
