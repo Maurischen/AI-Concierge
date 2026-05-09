@@ -94,9 +94,19 @@ function renderRecommendations(payload, originalText) {
     return;
   }
 
-  const cards = payload.recommendations
+  const items = payload.recommendations?.length > 0 ? payload.recommendations : payload.suggestions || [];
+  const cards = items
     .map((product, index) => {
-      const label = index === 0 ? "Best fit" : index === 1 ? "Alternative" : "Worth comparing";
+      const label =
+        payload.recommendations?.length > 0
+          ? index === 0
+            ? "Best fit"
+            : index === 1
+              ? "Alternative"
+              : "Worth comparing"
+          : index === 0
+            ? "Possible match"
+            : "Similar option";
       return `
         <article class="recommendation">
           <div class="recommendation-header">
@@ -125,8 +135,8 @@ function renderRecommendations(payload, originalText) {
     `<p>${escapeHtml(payload.message)}</p><div class="recommendations">${cards}</div><p>${escapeHtml(followUp)}</p><p class="source-note">${escapeHtml(sourceNote)}</p>`
   );
 
-  state.lastRecommendations = payload.recommendations;
-  renderCatalog(payload.recommendations.map((product) => product.variantId));
+  state.lastRecommendations = items;
+  renderCatalog(items.map((product) => product.variantId));
 }
 
 function wantsNearbyStore(text) {

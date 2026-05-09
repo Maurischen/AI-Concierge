@@ -13,7 +13,7 @@ import {
 } from "./lib/catalog-store.js";
 import { applyLocationContext } from "./lib/locations.js";
 import { rankRecommendationsWithOpenAI } from "./lib/openai.js";
-import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts } from "./lib/recommendations.js";
+import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts, suggestSimilarProducts } from "./lib/recommendations.js";
 import { productMatchesRequestedIntents, requestedIntentNames } from "./lib/product-intents.js";
 import { normalizeWebhookProduct, verifyShopifyWebhook } from "./lib/shopify.js";
 
@@ -323,6 +323,7 @@ async function handleApi(request, response) {
 
     const locationResult = applyLocationContext(recommendations, candidateRecommendations, products, userContext, customerLocation);
     recommendations = locationResult.recommendations;
+    const suggestions = recommendations.length === 0 ? suggestSimilarProducts(products, userContext, 3) : [];
 
     const recommendationMessage =
       recommendations.length > 0
@@ -332,7 +333,9 @@ async function handleApi(request, response) {
           ]
             .filter(Boolean)
             .join(" ")
-        : "I could not find a clear in-stock match for that request. Try widening the budget or checking that the matching products are tagged, collected, or metafielded clearly in Shopify.";
+        : suggestions.length > 0
+          ? "I could not find an exact in-stock match for that request. These are the closest similar products I found, so please check the model and colour carefully."
+          : "I could not find a clear in-stock match for that request. Try checking the model number, colour, or product name.";
 
     sendJson(response, 200, {
       shop: shopConfig,
@@ -340,6 +343,7 @@ async function handleApi(request, response) {
       source,
       message: recommendationMessage,
       recommendations,
+      suggestions,
       shoppingIntent: nextShoppingIntent
     });
     return;
