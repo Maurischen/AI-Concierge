@@ -108,6 +108,10 @@ async function handleApi(request, response) {
     }
 
     const recommendations = recommendProducts(products, userContext);
+    const recommendationMessage =
+      recommendations.length > 0
+        ? "Here are the best matches from current stock. I’d lead with the first option unless your budget or portability needs change."
+        : "I could not find a clear in-stock match for that request. Try widening the budget or checking that the matching products are tagged, collected, or metafielded clearly in Shopify.";
 
     try {
       const openaiResponse = await createOpenAIRecommendation({ message: userContext, products: recommendations });
@@ -115,8 +119,7 @@ async function handleApi(request, response) {
         shop: shopConfig,
         type: "recommendations",
         source: openaiResponse ? "openai" : "local",
-        message:
-          "Here are the best matches from current stock. I’d lead with the first option unless your budget or portability needs change.",
+        message: recommendationMessage,
         recommendations,
         openaiResponse
       });
@@ -126,7 +129,9 @@ async function handleApi(request, response) {
         type: "recommendations",
         source: "local",
         message:
-          "Here are the best matches from current stock. The AI service was unavailable, so I used the local product matcher.",
+          recommendations.length > 0
+            ? "Here are the best matches from current stock. The AI service was unavailable, so I used the local product matcher."
+            : recommendationMessage,
         recommendations,
         warning: error.message
       });

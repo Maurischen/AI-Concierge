@@ -17,6 +17,20 @@ const query = `#graphql
         tags
         descriptionHtml
         totalInventory
+        collections(first: 10) {
+          nodes {
+            title
+            handle
+          }
+        }
+        metafields(first: 30) {
+          nodes {
+            namespace
+            key
+            value
+            type
+          }
+        }
         featuredMedia {
           preview {
             image {
