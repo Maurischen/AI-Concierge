@@ -33,6 +33,44 @@ const personalityTips = [
   "Quick tip: you can ask for nearby store stock once locations are live."
 ];
 
+const blockedLanguagePatterns = [
+  /\bf+u+c+k+\b/i,
+  /\bf+u+c+k+e+r+\b/i,
+  /\bs+h+i+t+\b/i,
+  /\bb+i+t+c+h+\b/i,
+  /\bc+u+n+t+\b/i,
+  /\ba+s+s+h+o+l+e+\b/i,
+  /\bd+i+c+k+\b/i,
+  /\bp+u+s+s+y+\b/i,
+  /\bw+h+o+r+e+\b/i,
+  /\bs+l+u+t+\b/i,
+  /\bf+a+g+g+o+t+\b/i,
+  /\br+e+t+a+r+d+\b/i,
+  /\bk+a+f+f+i+r+\b/i,
+  /\bk+a+f+e+r+\b/i,
+  /\bk+a+f+f+e+r+\b/i,
+  /\bn+i+g+g+(a|e)+r+\b/i,
+  /\bh+o+t+n+o+t+\b/i,
+  /\bc+o+o+l+i+e+\b/i,
+  /\bm+o+f+f+i+e+\b/i,
+  /\bp+o+e+s+\b/i,
+  /\bp+o+e+p+o+l+\b/i,
+  /\bd+o+o+s+\b/i,
+  /\bf+o+k+\b/i,
+  /\bf+o+k+o+f+\b/i,
+  /\bf+o+k+\s*j+o+u+\b/i,
+  /\bj+o+u+\s*m+a+\b/i,
+  /\bv+o+e+t+s+e+k+\b/i,
+  /\bbliks+e+m+\b/i,
+  /\bmoer\b/i,
+  /\bmoer\s+jou\b/i,
+  /\bp+i+e+l+\b/i,
+  /\bt+i+e+t+\b/i,
+  /\bt+i+e+t+s+\b/i,
+  /\bs+k+a+n+k+\b/i,
+  /\bh+o+e+r+\b/i
+];
+
 function money(value) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -50,13 +88,22 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function firstNameFrom(text) {
-  const cleaned = String(text || "")
+function containsBlockedLanguage(text) {
+  return blockedLanguagePatterns.some((pattern) => pattern.test(String(text || "")));
+}
+
+function cleanNameCandidate(value) {
+  return String(value || "")
     .trim()
-    .replace(/^(my name is|i am|i'm|im|name is|this is)\s+/i, "")
     .replace(/[^a-zA-Z '-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function firstNameFrom(text) {
+  const raw = String(text || "").trim();
+  const phraseMatch = raw.match(/\b(?:my name is|name is|i am|i'm|im|this is|call me)\s+([a-zA-Z][a-zA-Z '-]{1,40})/i);
+  const cleaned = cleanNameCandidate(phraseMatch?.[1] || raw);
   const firstName = cleaned.split(" ")[0] || "";
   return firstName.length >= 2 ? firstName.slice(0, 30) : "";
 }
@@ -211,6 +258,11 @@ function getBrowserLocation() {
 
 async function handleCustomerNeed(text) {
   addMessage("user", `<p>${escapeHtml(text)}</p>`);
+
+  if (containsBlockedLanguage(text)) {
+    addMessage("ai", "<p>Let’s keep it respectful. I’m happy to help with product recommendations when the wording is appropriate.</p>");
+    return;
+  }
 
   if (state.awaitingName) {
     const name = firstNameFrom(text);
