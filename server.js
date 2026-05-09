@@ -12,7 +12,7 @@ import {
   upsertCatalogProduct
 } from "./lib/catalog-store.js";
 import { rankRecommendationsWithOpenAI } from "./lib/openai.js";
-import { isRelevantProductForRequest, needsClarification, recommendProducts } from "./lib/recommendations.js";
+import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts } from "./lib/recommendations.js";
 import { productMatchesRequestedIntents, requestedIntentNames } from "./lib/product-intents.js";
 import { normalizeWebhookProduct, verifyShopifyWebhook } from "./lib/shopify.js";
 
@@ -144,6 +144,17 @@ async function handleApi(request, response) {
         shop: shopConfig,
         type: "clarification",
         message: `I can help with that. ${clarification.questions.join(" ")} Once I have that, I’ll recommend only in-stock products and explain the tradeoffs.`,
+        recommendations: []
+      });
+      return;
+    }
+
+    const qualificationQuestions = getQualificationQuestions(userContext);
+    if (qualificationQuestions.length > 0) {
+      sendJson(response, 200, {
+        shop: shopConfig,
+        type: "clarification",
+        message: `${qualificationQuestions.join(" ")} This helps me avoid recommending incompatible parts.`,
         recommendations: []
       });
       return;
