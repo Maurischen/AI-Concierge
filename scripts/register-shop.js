@@ -10,6 +10,9 @@ const storefrontName = readArg("name") || process.env.SHOPIFY_STOREFRONT_NAME ||
 const marketType = readArg("market") || process.env.SHOPIFY_MARKET_TYPE || null;
 const assistantName = readArg("assistant") || process.env.SHOPIFY_ASSISTANT_NAME || "AI Concierge";
 const themeColor = readArg("color") || process.env.SHOPIFY_THEME_COLOR || null;
+const logoUrl = readArg("logo") || process.env.SHOPIFY_LOGO_URL || null;
+const supportEmail = readArg("support-email") || process.env.SUPPORT_EMAIL || null;
+const salesEmail = readArg("sales-email") || process.env.SALES_EMAIL || null;
 const preferredBrandsRaw = readArg("preferred-brands") || process.env.PREFERRED_BRANDS_JSON || "{}";
 
 function parsePreferredBrands(raw) {
@@ -39,6 +42,9 @@ const shop = await upsertShop({
   marketType,
   assistantName,
   themeColor,
+  logoUrl,
+  supportEmail,
+  salesEmail,
   preferredBrands: parsePreferredBrands(preferredBrandsRaw)
 });
 

@@ -109,6 +109,22 @@ Each storefront should load the assistant with its shop domain:
 ></iframe>
 ```
 
+Or use the floating storefront widget:
+
+```html
+<script src="https://your-render-url.onrender.com/widget.js" data-shop="first-store.myshopify.com" async></script>
+```
+
+## Admin UI
+
+Set `ADMIN_TOKEN` in Render, then open:
+
+```text
+https://your-render-url.onrender.com/admin.html?shop=your-store.myshopify.com
+```
+
+The admin UI can configure the storefront name, AI chat name, logo URL, theme colour, sales/support emails, market type, and preferred brand JSON rules. It also generates the widget snippet for the selected shop.
+
 ## Shopify Catalog Sync
 
 Do not put your full catalog in `script.js`. The frontend calls the backend, and the backend loads `data/catalog-cache.json`. If that cache does not exist yet, it falls back to the small demo catalog.

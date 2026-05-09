@@ -11,6 +11,10 @@ const state = {
   loadingMessageIndex: 0
 };
 
+if (new URLSearchParams(window.location.search).get("embed") === "widget") {
+  document.body.classList.add("widget-mode");
+}
+
 const catalogGrid = document.querySelector("#catalog-grid");
 const messages = document.querySelector("#messages");
 const form = document.querySelector("#chat-form");
@@ -483,9 +487,15 @@ async function init() {
   const payload = await api("/api/products");
   if (payload.shop?.assistantName) {
     document.querySelector(".chat-header h2").textContent = payload.shop.assistantName;
+    document.querySelector(".store-header h1").textContent = payload.shop.assistantName;
   }
   if (payload.shop?.themeColor) {
     document.documentElement.style.setProperty("--accent", payload.shop.themeColor);
+  }
+  if (payload.shop?.logoUrl) {
+    const logoMarkup = `<img class="brand-logo" src="${escapeHtml(payload.shop.logoUrl)}" alt="${escapeHtml(payload.shop.storefrontName || payload.shop.assistantName || "Store logo")}" />`;
+    document.querySelector(".store-header .eyebrow").insertAdjacentHTML("beforebegin", logoMarkup);
+    document.querySelector(".chat-header .eyebrow").insertAdjacentHTML("beforebegin", logoMarkup);
   }
   if (payload.shop?.salesEmail) {
     document.body.dataset.salesEmail = payload.shop.salesEmail;

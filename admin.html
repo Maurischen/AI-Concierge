@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Concierge Admin</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body class="admin-page">
+    <main class="admin-shell">
+      <header class="admin-header">
+        <div>
+          <p class="eyebrow">AI Concierge</p>
+          <h1>Admin</h1>
+        </div>
+        <a class="admin-link" href="/" target="_blank" rel="noopener noreferrer">Open storefront</a>
+      </header>
+
+      <form class="admin-form" id="admin-form">
+        <section class="admin-section">
+          <h2>Store</h2>
+          <label>
+            Shop domain
+            <input id="shop-domain" name="shopDomain" placeholder="your-store.myshopify.com" required />
+          </label>
+          <label>
+            Admin token
+            <input id="admin-token" name="adminToken" type="password" placeholder="ADMIN_TOKEN" />
+          </label>
+          <button type="button" id="load-shop">Load settings</button>
+        </section>
+
+        <section class="admin-section">
+          <h2>Branding</h2>
+          <label>
+            Storefront name
+            <input name="storefrontName" />
+          </label>
+          <label>
+            AI chat name
+            <input name="assistantName" placeholder="AI Concierge" />
+          </label>
+          <label>
+            Logo URL
+            <input name="logoUrl" placeholder="https://..." />
+          </label>
+          <label>
+            Theme colour
+            <input name="themeColor" type="color" value="#007a6a" />
+          </label>
+        </section>
+
+        <section class="admin-section">
+          <h2>Contact</h2>
+          <label>
+            Sales email
+            <input name="salesEmail" type="email" placeholder="sales@example.com" />
+          </label>
+          <label>
+            Support email
+            <input name="supportEmail" type="email" placeholder="support@example.com" />
+          </label>
+          <label>
+            Market type
+            <input name="marketType" placeholder="business, consumer, education..." />
+          </label>
+        </section>
+
+        <section class="admin-section wide">
+          <h2>Preferred Brands</h2>
+          <label>
+            JSON rules
+            <textarea name="preferredBrands" rows="7" spellcheck="false" placeholder='{"cable":["UGreen"],"bag":["Port Designs"]}'></textarea>
+          </label>
+        </section>
+
+        <section class="admin-section wide">
+          <h2>Widget Install</h2>
+          <p>Paste this before the closing body tag in Shopify, or add it through a theme/custom-liquid block.</p>
+          <pre id="widget-snippet"></pre>
+        </section>
+
+        <div class="admin-actions">
+          <button type="submit">Save settings</button>
+          <span id="admin-status" role="status"></span>
+        </div>
+      </form>
+    </main>
+
+    <script src="./admin.js"></script>
+  </body>
+</html>

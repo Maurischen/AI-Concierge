@@ -209,6 +209,22 @@ function sendJson(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function adminAuthorized(request, url) {
+  const token = process.env.ADMIN_TOKEN;
+  if (!token && !process.env.RENDER) return true;
+  if (!token) return false;
+  return request.headers["x-admin-token"] === token || url.searchParams.get("token") === token;
+}
+
+function parseJsonObject(raw, fallback = {}) {
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return parsed && !Array.isArray(parsed) && typeof parsed === "object" ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function numericShopifyId(gid) {
   return String(gid || "").split("/").pop();
 }
@@ -304,6 +320,38 @@ async function handleApi(request, response) {
     const shop = await getShop(requestedShop);
     sendJson(response, 200, { shop, products });
     return;
+  }
+
+  if (url.pathname === "/api/admin/shop") {
+    if (!adminAuthorized(request, url)) {
+      sendJson(response, 401, { error: "Admin token is required." });
+      return;
+    }
+
+    if (request.method === "GET") {
+      const shop = await getShop(requestedShop);
+      sendJson(response, 200, { shop });
+      return;
+    }
+
+    if (request.method === "POST") {
+      const body = await readJson(request);
+      const existing = await getShop(requestedShop);
+      const shop = await upsertShop({
+        shopDomain: requestedShop,
+        accessToken: body.accessToken || existing?.accessToken || null,
+        storefrontName: body.storefrontName || requestedShop,
+        marketType: body.marketType || null,
+        assistantName: body.assistantName || "AI Concierge",
+        themeColor: body.themeColor || null,
+        logoUrl: body.logoUrl || null,
+        supportEmail: body.supportEmail || null,
+        salesEmail: body.salesEmail || null,
+        preferredBrands: parseJsonObject(body.preferredBrands, {})
+      });
+      sendJson(response, 200, { shop });
+      return;
+    }
   }
 
   if (request.method === "GET" && url.pathname === "/api/debug/search") {

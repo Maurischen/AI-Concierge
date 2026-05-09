@@ -62,6 +62,14 @@ button {
   text-transform: uppercase;
 }
 
+.brand-logo {
+  display: block;
+  max-width: 148px;
+  max-height: 44px;
+  object-fit: contain;
+  margin-bottom: 10px;
+}
+
 h1,
 h2,
 h3,
@@ -346,6 +354,30 @@ textarea:focus {
     border-top: 1px solid var(--line);
     position: relative;
   }
+}
+
+.widget-mode {
+  background: var(--panel);
+}
+
+.widget-mode .app-shell {
+  display: block;
+  min-height: 100vh;
+}
+
+.widget-mode .product-floor {
+  display: none;
+}
+
+.widget-mode .concierge {
+  position: relative;
+  height: 100vh;
+  min-height: 100vh;
+  border: 0;
+}
+
+.widget-mode .message {
+  max-width: 96%;
 }
 
 @media (max-width: 540px) {
