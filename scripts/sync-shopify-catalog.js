@@ -3,7 +3,7 @@ import { normalizeAdminProduct, shopifyGraphql } from "../lib/shopify.js";
 
 const query = `#graphql
   query ProductsForConcierge($cursor: String) {
-    products(first: 100, after: $cursor, query: "status:active") {
+    products(first: 25, after: $cursor, query: "status:active") {
       pageInfo {
         hasNextPage
         endCursor
