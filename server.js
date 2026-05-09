@@ -11,6 +11,7 @@ import {
   updateInventoryLevel,
   upsertCatalogProduct
 } from "./lib/catalog-store.js";
+import { applyCompatibilityContext } from "./lib/compatibility.js";
 import { applyLocationContext } from "./lib/locations.js";
 import { rankRecommendationsWithOpenAI } from "./lib/openai.js";
 import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts, suggestSimilarProducts } from "./lib/recommendations.js";
@@ -281,11 +282,13 @@ async function handleApi(request, response) {
       return;
     }
 
-    const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
-    const intentContext = shoppingIntentToText(nextShoppingIntent);
-    const userContext = intentContext || buildUserContext(message, history);
     const products = await loadCatalog(shopDomain);
     const shopConfig = await getShop(shopDomain);
+    const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
+    const intentContext = shoppingIntentToText(nextShoppingIntent);
+    const baseUserContext = intentContext || buildUserContext(message, history);
+    const compatibilityContext = applyCompatibilityContext(products, baseUserContext);
+    const userContext = compatibilityContext.text;
     const clarification = needsClarification(userContext);
     if (clarification.shouldClarify) {
       sendJson(response, 200, {
@@ -350,6 +353,7 @@ async function handleApi(request, response) {
       recommendations.length > 0
         ? [
             "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change.",
+            compatibilityContext.note,
             locationResult.note
           ]
             .filter(Boolean)
