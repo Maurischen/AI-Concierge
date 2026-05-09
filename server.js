@@ -33,6 +33,8 @@ const contentTypes = {
 const productTypePattern =
   /\b(cable|charger|power bank|powerbank|psu|power supply|power-supply|monitor|screen|display|ram|memory|ssd|hdd|hard drive|flash drive|usb drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|ink|cartridge|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i;
 
+const motherboardRequirementPattern = /\b(slots?|sticks?|dimms?|memory slots?|ram slots?|upgrade|eventually|support|supports?|up to|max(?:imum)?)\b/i;
+
 function normalizeIntentText(value = "") {
   return String(value).trim().replace(/\s+/g, " ");
 }
@@ -40,7 +42,9 @@ function normalizeIntentText(value = "") {
 function extractProductType(text) {
   const match = normalizeIntentText(text).match(productTypePattern);
   if (!match) return null;
+  const raw = String(text || "").toLowerCase();
   const type = match[1].toLowerCase();
+  if (["ram", "memory"].includes(type) && /\bmotherboard|mainboard|board\b/.test(raw)) return "motherboard";
   if (["screen", "display"].includes(type)) return "monitor";
   if (["powerbank"].includes(type)) return "power bank";
   if (["power supply", "power-supply"].includes(type)) return "psu";
@@ -131,7 +135,10 @@ function extractBrandsFromText(text) {
 
 function updateShoppingIntent(previousIntent, message) {
   const latest = normalizeIntentText(message);
-  const latestProductType = extractProductType(latest);
+  let latestProductType = extractProductType(latest);
+  if (previousIntent?.productType === "motherboard" && latestProductType === "ram" && motherboardRequirementPattern.test(latest)) {
+    latestProductType = "motherboard";
+  }
   const productTypeChanged = latestProductType && previousIntent?.productType && latestProductType !== previousIntent.productType;
   const baseIntent = productTypeChanged ? null : previousIntent;
   const productType = latestProductType || baseIntent?.productType || null;
@@ -161,6 +168,7 @@ function shoppingIntentToText(intent) {
     intent.modelTokens?.join(" "),
     intent.specs?.join(" "),
     intent.productType,
+    intent.productType === "motherboard" && intent.sizes?.some((size) => /\bgb\b/i.test(size)) ? "memory support" : null,
     intent.brands?.length ? `preferred brands ${intent.brands.join(" or ")}` : null,
     intent.budget ? `budget ${intent.budget}` : null,
     intent.openBudget ? "show me what is in stock without a budget" : null
