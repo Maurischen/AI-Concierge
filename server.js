@@ -29,6 +29,104 @@ const contentTypes = {
   ".json": "application/json; charset=utf-8"
 };
 
+const productTypePattern =
+  /\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|hard drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i;
+
+function normalizeIntentText(value = "") {
+  return String(value).trim().replace(/\s+/g, " ");
+}
+
+function extractProductType(text) {
+  const match = normalizeIntentText(text).match(productTypePattern);
+  if (!match) return null;
+  const type = match[1].toLowerCase();
+  if (["screen", "display"].includes(type)) return "monitor";
+  if (["powerbank"].includes(type)) return "power bank";
+  if (["memory"].includes(type)) return "ram";
+  if (["hard drive"].includes(type)) return "hdd";
+  if (["processor"].includes(type)) return "cpu";
+  if (["gpu"].includes(type)) return "graphics card";
+  if (["backpack"].includes(type)) return "bag";
+  if (["racing wheel", "wheel"].includes(type)) return "steering wheel";
+  return type;
+}
+
+function extractBudget(text) {
+  const terms = String(text).toLowerCase().replace(/(\d)\s+(\d{3})/g, "$1$2");
+  const match = terms.match(/\b(?:under|below|less than|budget|around|about|range|up to)?\s*(?:r|zar|rand)?\s?(\d{2,6})\b/);
+  return match ? match[1] : null;
+}
+
+function extractIntentSpecs(text) {
+  const terms = String(text).toLowerCase();
+  const specs = [];
+  const patterns = [
+    /\b(cat\s?5e?|cat\s?6a?|cat\s?6|cat\s?7|cat\s?8)\b/g,
+    /\b(8k|4k|uhd|qhd|fhd|1080p|1440p)\b/g,
+    /\b(hdmi|vga|displayport|dp|usb[- ]?c|type[- ]?c|lightning|ethernet|lan)\b/g,
+    /\b(nvme|sata|m\.?2|2\.5|3\.5|ddr4|ddr5|am4|am5|lga\s?\d+|atx|m-atx|matx|itx)\b/g,
+    /\b(\d{3,4}\s?w)\b/g
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of terms.matchAll(pattern)) specs.push(match[1].replace(/\s+/g, " "));
+  }
+
+  return [...new Set(specs)];
+}
+
+function extractSizes(text) {
+  const terms = String(text).toLowerCase();
+  return [...terms.matchAll(/\b(\d+(\.\d+)?)\s?(\"|”|'|inch|inches|in|tb|gb|mah|m)\b/g)].map((match) => match[0]);
+}
+
+function extractBrandsFromText(text) {
+  const terms = normalizeIntentText(text);
+  const preferenceSegment = terms.match(/\b(?:prefer|preferred|preference|brand|brands|only)\b(.{0,100})/i)?.[1] || "";
+  if (!preferenceSegment) return [];
+  return [
+    ...new Set(
+      preferenceSegment
+        .replace(/\b(brand|brands|make|makes|vendor|vendors|would|like|a|an|the|or|and)\b/gi, " ")
+        .split(/[,/]/)
+        .flatMap((part) => part.trim().split(/\s{2,}/))
+        .map((brand) => brand.trim())
+        .filter((brand) => /^[a-z0-9][a-z0-9 -]{1,34}$/i.test(brand))
+    )
+  ];
+}
+
+function updateShoppingIntent(previousIntent, message) {
+  const latest = normalizeIntentText(message);
+  const productType = extractProductType(latest) || previousIntent?.productType || null;
+  const specs = extractIntentSpecs(latest);
+  const sizes = extractSizes(latest);
+  const brands = extractBrandsFromText(latest);
+  const budget = extractBudget(latest) || previousIntent?.budget || null;
+  const replacesSpecs = /\b(instead|rather|change|changed|different|other|now|actually)\b/i.test(latest);
+
+  return {
+    productType,
+    budget,
+    specs: specs.length > 0 ? specs : replacesSpecs ? [] : previousIntent?.specs || [],
+    sizes: sizes.length > 0 ? sizes : replacesSpecs ? [] : previousIntent?.sizes || [],
+    brands: brands.length > 0 ? brands : previousIntent?.brands || []
+  };
+}
+
+function shoppingIntentToText(intent) {
+  if (!intent?.productType) return "";
+  return [
+    intent.sizes?.join(" "),
+    intent.specs?.join(" "),
+    intent.productType,
+    intent.brands?.length ? `preferred brands ${intent.brands.join(" or ")}` : null,
+    intent.budget ? `budget ${intent.budget}` : null
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function sendJson(response, status, payload) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(payload));
@@ -40,12 +138,29 @@ function buildUserContext(message, history) {
     : [];
   const latestMessage = String(message || "").trim();
   const previousMessages = userMessages.slice(0, -1);
+  const previousContext = previousMessages.slice(-3).join(" ");
+  const latestTerms = latestMessage.toLowerCase();
+  const contextTypeMatch = previousContext.match(
+    /\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|hard drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i
+  );
+  const latestHasProductType =
+    /\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|hard drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i.test(
+      latestMessage
+    );
+  const latestHasReplacementSpec =
+    /\b(instead|rather|different|other)\b/i.test(latestMessage) &&
+    /\b(4k|8k|1080p|1440p|uhd|qhd|fhd|hdmi|vga|displayport|dp|usb[- ]?c|type[- ]?c|sata|nvme|m\.?2|ddr4|ddr5)\b/i.test(latestMessage);
+
+  if (latestHasReplacementSpec && contextTypeMatch && !latestHasProductType) {
+    return `${latestMessage} ${contextTypeMatch[1]}`;
+  }
+
   const latestLooksLikeRefinement =
     /\b(anything|something|one|option|options|range|budget|under|below|cheaper|more expensive|less expensive|that|those|it|them|yes|no|show me|what about|m\.?2|nvme|sata|2\.5|3\.5|external|portable|internal|atx|m-atx|matx|itx|am4|am5|lga|ddr4|ddr5|\d{3,4}\s?w)\b/i.test(
       latestMessage
     ) && !/\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|graphics card|gpu)\b/i.test(latestMessage);
 
-  if (latestLooksLikeRefinement && previousMessages.length > 0) {
+  if (latestLooksLikeRefinement && previousMessages.length > 0 && !latestTerms.includes("instead")) {
     return [...previousMessages.slice(-3), latestMessage].join(" ");
   }
 
@@ -129,14 +244,16 @@ async function handleApi(request, response) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/chat") {
-    const { message, shop, history = [], customerLocation = null } = await readJson(request);
+    const { message, shop, history = [], customerLocation = null, shoppingIntent = null } = await readJson(request);
     const shopDomain = normalizeShopDomain(shop || requestedShop);
     if (!message || typeof message !== "string") {
       sendJson(response, 400, { error: "Message is required." });
       return;
     }
 
-    const userContext = buildUserContext(message, history);
+    const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
+    const intentContext = shoppingIntentToText(nextShoppingIntent);
+    const userContext = intentContext || buildUserContext(message, history);
     const products = await loadCatalog(shopDomain);
     const shopConfig = await getShop(shopDomain);
     const clarification = needsClarification(userContext);
@@ -145,7 +262,8 @@ async function handleApi(request, response) {
         shop: shopConfig,
         type: "clarification",
         message: `I can help with that. ${clarification.questions.join(" ")} Once I have that, I’ll recommend only in-stock products and explain the tradeoffs.`,
-        recommendations: []
+        recommendations: [],
+        shoppingIntent: nextShoppingIntent
       });
       return;
     }
@@ -156,7 +274,8 @@ async function handleApi(request, response) {
         shop: shopConfig,
         type: "clarification",
         message: `${qualificationQuestions.join(" ")} This helps me avoid recommending incompatible parts.`,
-        recommendations: []
+        recommendations: [],
+        shoppingIntent: nextShoppingIntent
       });
       return;
     }
@@ -211,7 +330,8 @@ async function handleApi(request, response) {
       type: "recommendations",
       source,
       message: recommendationMessage,
-      recommendations
+      recommendations,
+      shoppingIntent: nextShoppingIntent
     });
     return;
   }

@@ -4,7 +4,8 @@ const state = {
   cartCount: 0,
   lastRecommendations: [],
   conversation: [],
-  customerLocation: null
+  customerLocation: null,
+  shoppingIntent: null
 };
 
 const catalogGrid = document.querySelector("#catalog-grid");
@@ -173,12 +174,16 @@ async function handleCustomerNeed(text) {
         message: text,
         shop: state.shopDomain,
         history: state.conversation.slice(-6),
-        customerLocation: state.customerLocation
+        customerLocation: state.customerLocation,
+        shoppingIntent: state.shoppingIntent
       })
     });
 
     messages.querySelector(".typing")?.closest(".message")?.remove();
     renderRecommendations(payload, text);
+    if (payload.shoppingIntent) {
+      state.shoppingIntent = payload.shoppingIntent;
+    }
     if (payload.message) {
       state.conversation.push({ role: "assistant", content: payload.message });
     }
