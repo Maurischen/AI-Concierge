@@ -8,7 +8,7 @@ This is a local storefront demo for a Shopify AI concierge. It has a small Node 
 - A conversational concierge for electronics needs.
 - Stock-aware recommendation cards with reasons.
 - Location-aware inventory answers for store/branch availability.
-- Add-to-cart behavior that records selected variant IDs.
+- Add-to-cart behavior that hands real Shopify shops to the native Shopify cart.
 - Backend API routes for product data, chat recommendations, and cart actions.
 - An OpenAI-ready backend integration that uses the local matcher when no API key is configured.
 
@@ -34,7 +34,7 @@ Commit everything except files ignored by `.gitignore`, especially `.env`, `node
 
 - `GET /api/products` returns the current product catalog.
 - `POST /api/chat` accepts `{ "message": "..." }` and returns clarification or recommendations.
-- `POST /api/cart` accepts `{ "variantId": "...", "quantity": 1 }` and returns a Shopify-ready cart action.
+- `POST /api/cart` accepts `{ "variantId": "...", "quantity": 1 }` and returns a Shopify cart-add URL for real shops, or a demo cart action locally.
 
 ## OpenAI Setup
 
@@ -183,5 +183,5 @@ That initial sync loads the 4,000+ product catalog into Postgres for that shop. 
 2. Register the product webhooks in each Shopify custom app or public app.
 3. Add richer product attributes for electronics, such as RAM, CPU, storage, GPU, wattage, compatibility, and warranty.
 4. Use OpenAI tool calling so the assistant can call `search_products`, `compare_products`, and `add_to_cart`.
-5. Replace the demo cart handler with Shopify Storefront API cart mutations.
+5. Replace the cart handoff with Storefront API cart mutations if you want customers to stay inside the embedded experience instead of opening Shopify's cart URL.
 6. Package the UI into a Shopify theme app extension.

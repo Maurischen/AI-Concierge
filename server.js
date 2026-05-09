@@ -209,6 +209,23 @@ function sendJson(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function numericShopifyId(gid) {
+  return String(gid || "").split("/").pop();
+}
+
+function isRealShopDomain(shopDomain) {
+  return /\.myshopify\.com$/i.test(shopDomain) || /^[a-z0-9][a-z0-9-]*\.[a-z]{2,}$/i.test(shopDomain);
+}
+
+function buildShopifyCartAddUrl(shopDomain, variantId, quantity) {
+  const numericVariantId = numericShopifyId(variantId);
+  if (!isRealShopDomain(shopDomain) || !/^\d+$/.test(numericVariantId)) return null;
+  const url = new URL(`https://${shopDomain}/cart/add`);
+  url.searchParams.set("id", numericVariantId);
+  url.searchParams.set("quantity", String(Math.max(1, Number(quantity) || 1)));
+  return url.toString();
+}
+
 function buildUserContext(message, history) {
   const userMessages = Array.isArray(history)
     ? history.filter((item) => item?.role === "user" && typeof item.content === "string").map((item) => item.content.trim())
@@ -446,11 +463,15 @@ async function handleApi(request, response) {
 
     demoCart.push({ shopDomain, variantId, quantity });
     const shopCart = demoCart.filter((line) => line.shopDomain === shopDomain);
+    const cartAddUrl = buildShopifyCartAddUrl(shopDomain, variantId, quantity);
     sendJson(response, 200, {
       cart: shopCart,
       count: shopCart.reduce((total, line) => total + line.quantity, 0),
       product,
       shopifyReady: {
+        mode: cartAddUrl ? "online-store-cart-add" : "demo-cart",
+        cartAddUrl,
+        numericVariantId: numericShopifyId(variantId),
         mutation: "cartLinesAdd",
         merchandiseId: variantId,
         quantity

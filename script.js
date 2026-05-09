@@ -423,19 +423,33 @@ async function handleCustomerNeed(text) {
 
 async function addToCart(variantId) {
   try {
+    addMessage("ai", `<p class="typing">${escapeHtml(greetingPrefix())}Preparing the Shopify cart handoff...</p>`);
     const payload = await api("/api/cart", {
       method: "POST",
       body: JSON.stringify({ variantId, quantity: 1, shop: state.shopDomain })
     });
 
+    messages.querySelector(".typing")?.closest(".message")?.remove();
     state.cartCount = payload.count;
     cartCount.textContent = String(state.cartCount);
+
+    if (payload.shopifyReady?.cartAddUrl) {
+      addMessage(
+        "ai",
+        `<p><strong>${escapeHtml(payload.product.name)}</strong> is ready for your Shopify cart. Opening the cart now...</p><p><a href="${escapeHtml(payload.shopifyReady.cartAddUrl)}" target="_top" rel="noopener noreferrer">Open Shopify cart</a></p>`
+      );
+      window.setTimeout(() => {
+        window.top.location.href = payload.shopifyReady.cartAddUrl;
+      }, 600);
+      return;
+    }
 
     addMessage(
       "ai",
       `<p><strong>${escapeHtml(payload.product.name)}</strong> has been added to the demo cart.</p><p>Shopify-ready action: <code>${escapeHtml(payload.shopifyReady.mutation)}</code> with variant ID <code>${escapeHtml(payload.shopifyReady.merchandiseId)}</code>.</p>`
     );
   } catch (error) {
+    messages.querySelector(".typing")?.closest(".message")?.remove();
     addMessage("ai", `<p>I could not add that item to the cart. ${escapeHtml(error.message)}</p>`);
   }
 }
