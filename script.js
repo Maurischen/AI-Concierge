@@ -18,19 +18,25 @@ const input = document.querySelector("#chat-input");
 const cartCount = document.querySelector("#cart-count");
 
 const loadingMessages = [
-  "Checking live stock and matching the details...",
-  "Comparing options against your must-haves...",
-  "Looking for the best fit in the current catalogue...",
-  "Checking specs, stock, and compatibility...",
-  "Scanning for close matches and avoiding the wrong kind of product..."
+  "Doing the stock-room speedrun...",
+  "Cross-checking specs like a tiny spreadsheet Jedi...",
+  "Consulting the catalogue archives...",
+  "Looking for the option that understood the assignment...",
+  "Checking stock, specs, and the fine print...",
+  "Separating the real matches from the side quests...",
+  "Putting the product list through detective mode...",
+  "Scanning the shelves at warp speed..."
 ];
 
 const personalityTips = [
-  "Quick tip: exact model numbers help me avoid almost-right accessories.",
-  "Quick tip: if size matters, tell me the exact size or say “at least” for larger options.",
-  "Quick tip: for upgrades, tell me the socket, connector, or form factor when you know it.",
-  "Quick tip: if you prefer a brand, name it and I’ll prioritise it where stock allows.",
-  "Quick tip: you can ask for nearby store stock once locations are live."
+  "Tech tip: exact model numbers are the cheat codes for compatibility.",
+  "Tiny wisdom: “at least 24-inch” and “exactly 24-inch” are very different quests.",
+  "Upgrade lore: socket, connector, and form factor save everyone from drama.",
+  "Brand preference unlocked: name the brand and I’ll favour it where stock allows.",
+  "Store quest: ask for nearby stock once your live locations are connected.",
+  "Compatibility mantra: measure twice, add to cart once.",
+  "Cable chaos avoidance protocol: tell me HDMI, USB-C, Cat 6, 4K, 8K, or whatever matters.",
+  "Boss fight shortcut: budget plus must-haves gets you better matches faster."
 ];
 
 const blockedLanguagePatterns = [
