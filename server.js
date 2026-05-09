@@ -12,7 +12,7 @@ import {
   upsertCatalogProduct
 } from "./lib/catalog-store.js";
 import { rankRecommendationsWithOpenAI } from "./lib/openai.js";
-import { needsClarification, recommendProducts } from "./lib/recommendations.js";
+import { isRelevantProductForRequest, needsClarification, recommendProducts } from "./lib/recommendations.js";
 import { normalizeWebhookProduct, verifyShopifyWebhook } from "./lib/shopify.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
@@ -126,6 +126,7 @@ async function handleApi(request, response) {
         recommendations = aiRanking.recommendations
           .map((item) => candidateRecommendations.find((product) => product.variantId === item.variantId))
           .filter(Boolean)
+          .filter((product) => isRelevantProductForRequest(product, userContext))
           .slice(0, 3)
           .map((product) => ({
             ...product,
