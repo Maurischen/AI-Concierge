@@ -33,6 +33,24 @@ function sendJson(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function buildUserContext(message, history) {
+  const userMessages = Array.isArray(history)
+    ? history.filter((item) => item?.role === "user" && typeof item.content === "string").map((item) => item.content.trim())
+    : [];
+  const latestMessage = String(message || "").trim();
+  const previousMessages = userMessages.slice(0, -1);
+  const latestLooksLikeRefinement =
+    /\b(anything|something|one|option|options|range|budget|under|below|cheaper|more expensive|less expensive|that|those|it|them|yes|no|show me|what about)\b/i.test(
+      latestMessage
+    ) && !/\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|graphics card|gpu)\b/i.test(latestMessage);
+
+  if (latestLooksLikeRefinement && previousMessages.length > 0) {
+    return [...previousMessages.slice(-3), latestMessage].join(" ");
+  }
+
+  return userMessages.length > 0 ? userMessages.slice(-4).join(" ") : latestMessage;
+}
+
 async function readJson(request) {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
@@ -117,13 +135,7 @@ async function handleApi(request, response) {
       return;
     }
 
-    const userContext = Array.isArray(history)
-      ? history
-          .filter((item) => item?.role === "user" && typeof item.content === "string")
-          .slice(-4)
-          .map((item) => item.content)
-          .join(" ")
-      : message;
+    const userContext = buildUserContext(message, history);
     const products = await loadCatalog(shopDomain);
     const shopConfig = await getShop(shopDomain);
     const clarification = needsClarification(userContext);
