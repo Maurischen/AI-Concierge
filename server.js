@@ -13,7 +13,7 @@ import {
 } from "./lib/catalog-store.js";
 import { applyCompatibilityContext } from "./lib/compatibility.js";
 import { applyLocationContext } from "./lib/locations.js";
-import { rankRecommendationsWithOpenAI } from "./lib/openai.js";
+import { rankRecommendationsWithOpenAI, researchCompatibilityWithWeb } from "./lib/openai.js";
 import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts, suggestSimilarProducts } from "./lib/recommendations.js";
 import { productMatchesRequestedIntents, requestedIntentNames } from "./lib/product-intents.js";
 import { normalizeWebhookProduct, verifyShopifyWebhook } from "./lib/shopify.js";
@@ -40,9 +40,15 @@ function normalizeIntentText(value = "") {
 }
 
 function extractProductType(text) {
+  const raw = String(text || "").toLowerCase();
+  if (/\b(upgrade|replace|add|more|compatible|work with|for)\b.*\b(ram|memory)\b|\b(ram|memory)\b.*\b(for|compatible|work with|upgrade)\b/.test(raw)) {
+    return "ram";
+  }
+  if (/\b(upgrade|replace|add|more|compatible|work with|for)\b.*\b(ssd|hdd|hard drive|storage)\b|\b(ssd|hdd|hard drive|storage)\b.*\b(for|compatible|work with|upgrade)\b/.test(raw)) {
+    return raw.includes("hdd") || raw.includes("hard drive") ? "hdd" : "ssd";
+  }
   const match = normalizeIntentText(text).match(productTypePattern);
   if (!match) return null;
-  const raw = String(text || "").toLowerCase();
   const type = match[1].toLowerCase();
   if (["ram", "memory"].includes(type) && /\bmotherboard|mainboard|board\b/.test(raw)) return "motherboard";
   if (["screen", "display"].includes(type)) return "monitor";
@@ -305,7 +311,11 @@ async function handleApi(request, response) {
     const intentContext = shoppingIntentToText(nextShoppingIntent);
     const baseUserContext = intentContext || buildUserContext(message, history);
     const compatibilityContext = applyCompatibilityContext(products, baseUserContext);
-    const userContext = compatibilityContext.text;
+    const webCompatibilityContext =
+      compatibilityContext.referenceProduct && !/could not confirm/i.test(compatibilityContext.note || "")
+        ? null
+        : await researchCompatibilityWithWeb({ message: baseUserContext });
+    const userContext = webCompatibilityContext?.text || compatibilityContext.text;
     const clarification = needsClarification(userContext);
     if (clarification.shouldClarify) {
       sendJson(response, 200, {
@@ -370,7 +380,7 @@ async function handleApi(request, response) {
       recommendations.length > 0
         ? [
             "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change.",
-            compatibilityContext.note,
+            webCompatibilityContext?.note || compatibilityContext.note,
             locationResult.note
           ]
             .filter(Boolean)
@@ -386,6 +396,7 @@ async function handleApi(request, response) {
       message: recommendationMessage,
       recommendations,
       suggestions,
+      webSources: webCompatibilityContext?.sources || [],
       shoppingIntent: nextShoppingIntent
     });
     return;

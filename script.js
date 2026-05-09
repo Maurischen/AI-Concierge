@@ -242,9 +242,12 @@ function renderRecommendations(payload, originalText) {
     : "You can ask me to compare these, narrow by budget, or build a complete setup.";
 
   const sourceNote = payload.source === "openai" ? "AI-assisted recommendation." : "Local product matcher.";
+  const webSources = (payload.webSources || [])
+    .map((source) => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title || source.url)}</a>`)
+    .join(" · ");
   addMessage(
     "ai",
-    `<p>${escapeHtml(greetingPrefix())}${escapeHtml(payload.message)}</p><div class="recommendations">${cards}</div><p>${escapeHtml(followUp)}</p><p class="source-note">${escapeHtml(sourceNote)}</p>`
+    `<p>${escapeHtml(greetingPrefix())}${escapeHtml(payload.message)}</p><div class="recommendations">${cards}</div><p>${escapeHtml(followUp)}</p><p class="source-note">${escapeHtml(sourceNote)}</p>${webSources ? `<p class="source-note">Compatibility sources: ${webSources}</p>` : ""}`
   );
 
   state.lastRecommendations = items;

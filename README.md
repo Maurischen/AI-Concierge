@@ -43,8 +43,12 @@ Copy `.env.example` to `.env` when you are ready to use a real API key. This dem
 ```powershell
 $env:OPENAI_API_KEY="your_api_key"
 $env:OPENAI_MODEL="gpt-5.4-mini"
+$env:OPENAI_WEB_MODEL="gpt-5.4-mini"
+$env:ENABLE_WEB_COMPATIBILITY="true"
 npm run dev
 ```
+
+When `ENABLE_WEB_COMPATIBILITY=true`, the backend can use OpenAI web search for compatibility lookups when a customer mentions an existing device that is not in the Shopify catalog, such as "MSI Pulse GL76 laptop RAM upgrade." The app uses that external compatibility result only to add requirements like DDR generation, SODIMM/DIMM, M.2 NVMe, or PSU wattage before searching your in-stock catalog.
 
 ## Multi-Shop Setup
 
