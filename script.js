@@ -61,6 +61,8 @@ const blockedLanguagePatterns = [
   /\bf+o+k+\s*j+o+u+\b/i,
   /\bj+o+u+\s*m+a+\b/i,
   /\bv+o+e+t+s+e+k+\b/i,
+  /\bk+a+k+\b/i,
+  /\bg+a+a+n+\s*k+a+k+\b/i,
   /\bbliks+e+m+\b/i,
   /\bmoer\b/i,
   /\bmoer\s+jou\b/i,
@@ -89,7 +91,23 @@ function escapeHtml(value) {
 }
 
 function containsBlockedLanguage(text) {
-  return blockedLanguagePatterns.some((pattern) => pattern.test(String(text || "")));
+  const normalized = String(text || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/0/g, "o")
+    .replace(/1/g, "i")
+    .replace(/3/g, "e")
+    .replace(/4/g, "a")
+    .replace(/5/g, "s")
+    .replace(/7/g, "t")
+    .replace(/[@$!]/g, (char) => ({ "@": "a", "$": "s", "!": "i" })[char] || char)
+    .replace(/[^a-z]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const compact = normalized.replace(/\s+/g, "");
+
+  return blockedLanguagePatterns.some((pattern) => pattern.test(normalized) || pattern.test(compact));
 }
 
 function cleanNameCandidate(value) {
@@ -260,7 +278,7 @@ async function handleCustomerNeed(text) {
   addMessage("user", `<p>${escapeHtml(text)}</p>`);
 
   if (containsBlockedLanguage(text)) {
-    addMessage("ai", "<p>Let’s keep it respectful. I’m happy to help with product recommendations when the wording is appropriate.</p>");
+    addMessage("ai", "<p>Let’s keep it respectful. I can help with product recommendations, but I won’t use abusive or vulgar wording as your name or shopping context.</p>");
     return;
   }
 
