@@ -251,6 +251,75 @@ function renderRecommendations(payload, originalText) {
   renderCatalog(items.map((product) => product.variantId));
 }
 
+function wantsComparison(text) {
+  return /\b(compare|comparison|difference|differences|versus|vs\.?|which one|which is better|these two|between these)\b/i.test(text);
+}
+
+function compactDescription(product) {
+  return [product.description, ...(product.specs || []), ...(product.tags || [])]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function comparisonHighlights(product) {
+  const text = `${product.name} ${compactDescription(product)}`.toLowerCase();
+  const highlights = [];
+
+  if (/\bwireless\b/.test(text)) highlights.push("wireless");
+  if (/\bbluetooth\b/.test(text)) highlights.push("Bluetooth");
+  if (/\b2\.4\s?ghz\b/.test(text)) highlights.push("2.4GHz");
+  if (/\baux\b|\b3\.5\s?mm\b/.test(text)) highlights.push("AUX/3.5mm");
+  if (/\bnoise[- ]?cancel|noise cancel/i.test(text)) highlights.push("noise-cancel feature");
+  if (/\brgb\b/.test(text)) highlights.push("RGB");
+  if (/\brechargeable\b|\brechargable\b|\bbuilt[- ]?in battery\b/.test(text)) highlights.push("rechargeable");
+  if (/\b7\.1\b|\bsurround\b/.test(text)) highlights.push("surround sound");
+  if (/\blow latency\b/.test(text)) highlights.push("low latency");
+
+  return highlights.length > 0 ? highlights.slice(0, 4).join(", ") : "core specs shown in product title";
+}
+
+function renderComparison(text) {
+  const products = state.lastRecommendations.slice(0, 3);
+  if (products.length < 2) {
+    addMessage("ai", `<p>${escapeHtml(greetingPrefix())}I need at least two recent options to compare. Ask me for recommendations first, then I can line them up properly.</p>`);
+    return true;
+  }
+
+  const cheapest = [...products].sort((a, b) => a.price - b.price)[0];
+  const priciest = [...products].sort((a, b) => b.price - a.price)[0];
+  const rows = products
+    .map(
+      (product, index) => `
+        <article class="recommendation">
+          <div class="recommendation-header">
+            <div>
+              <h3>${escapeHtml(product.name)}</h3>
+              <strong>${money(product.price)}</strong>
+            </div>
+            <span class="fit-label">${index === 0 ? "Option 1" : `Option ${index + 1}`}</span>
+          </div>
+          <ul class="reason-list">
+            <li>${escapeHtml(comparisonHighlights(product))}</li>
+            <li>${escapeHtml(product.stock)} in stock.</li>
+            <li>${product.price === cheapest.price ? "Best price." : product.price === priciest.price ? "Most expensive option." : "Middle-price option."}</li>
+          </ul>
+          <button type="button" data-add="${escapeHtml(product.variantId)}">Add to cart</button>
+        </article>
+      `
+    )
+    .join("");
+
+  const pick = products.find((product) => /wireless|bluetooth|2\.4/i.test(`${product.name} ${compactDescription(product)}`)) || products[0];
+  addMessage(
+    "ai",
+    `<p>${escapeHtml(greetingPrefix())}Here’s the clean comparison. Short version: pick <strong>${escapeHtml(pick.name)}</strong> if you want the strongest fit; pick <strong>${escapeHtml(cheapest.name)}</strong> if price matters most.</p><div class="recommendations">${rows}</div><p class="source-note">Comparison based on the most recent recommendation cards.</p>`
+  );
+  renderCatalog(products.map((product) => product.variantId));
+  return true;
+}
+
 function wantsNearbyStore(text) {
   return /\b(near me|nearest|closest|nearby|my location|closest store|nearest store)\b/i.test(text);
 }
@@ -301,6 +370,12 @@ async function handleCustomerNeed(text) {
     } else {
       addMessage("ai", "<p>What should I call you while we shop?</p>");
     }
+    return;
+  }
+
+  if (wantsComparison(text) && renderComparison(text)) {
+    state.conversation.push({ role: "user", content: text });
+    state.conversation.push({ role: "assistant", content: "Compared the most recent recommendations." });
     return;
   }
 
