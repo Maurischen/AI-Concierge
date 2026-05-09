@@ -62,10 +62,22 @@ Then sync one shop:
 npm run sync:shopify -- --shop=first-store.myshopify.com
 ```
 
+Register Shopify webhooks for one shop:
+
+```bash
+npm run register:webhooks -- --shop=first-store.myshopify.com
+```
+
 Or sync all registered shops:
 
 ```bash
 npm run sync:shopify
+```
+
+Or register webhooks for all registered shops:
+
+```bash
+npm run register:webhooks
 ```
 
 Each storefront should load the assistant with its shop domain:
@@ -99,8 +111,15 @@ For automatic updates, register these Shopify webhooks against your deployed app
 - `products/create` -> `/api/shopify/webhooks/products/create`
 - `products/update` -> `/api/shopify/webhooks/products/update`
 - `products/delete` -> `/api/shopify/webhooks/products/delete`
+- `inventory_levels/update` -> `/api/shopify/webhooks/inventory-levels/update`
 
 Set `SHOPIFY_WEBHOOK_SECRET` in production so webhook requests are verified before they update the local catalog cache.
+
+Your Shopify app/custom app needs these Admin API scopes:
+
+```text
+read_products,read_inventory
+```
 
 ## Render Deployment
 

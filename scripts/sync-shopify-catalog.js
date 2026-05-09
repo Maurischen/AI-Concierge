@@ -31,6 +31,9 @@ const query = `#graphql
             sku
             price
             inventoryQuantity
+            inventoryItem {
+              id
+            }
           }
         }
       }

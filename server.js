@@ -8,6 +8,7 @@ import {
   loadCatalog,
   normalizeShopDomain,
   removeCatalogProduct,
+  updateInventoryLevel,
   upsertCatalogProduct
 } from "./lib/catalog-store.js";
 import { createOpenAIRecommendation } from "./lib/openai.js";
@@ -197,6 +198,29 @@ async function handleApi(request, response) {
     const productId = `gid://shopify/Product/${deletedProduct.id}`;
     await removeCatalogProduct(productId, webhookShop);
     sendJson(response, 200, { ok: true, shop: webhookShop, productId });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/shopify/webhooks/inventory-levels/update") {
+    const rawBody = await readRawBody(request);
+    const hmac = request.headers["x-shopify-hmac-sha256"];
+    const webhookShop = normalizeShopDomain(request.headers["x-shopify-shop-domain"] || requestedShop);
+
+    if (!verifyShopifyWebhook(rawBody, hmac)) {
+      sendJson(response, 401, { error: "Invalid Shopify webhook signature." });
+      return;
+    }
+
+    const inventoryLevel = JSON.parse(rawBody.toString("utf8"));
+    const numericInventoryItemId = inventoryLevel.inventory_item_id;
+    const inventoryItemId = numericInventoryItemId ? `gid://shopify/InventoryItem/${numericInventoryItemId}` : null;
+    const result = await updateInventoryLevel({
+      shopDomain: webhookShop,
+      inventoryItemId,
+      available: inventoryLevel.available
+    });
+
+    sendJson(response, 200, { ok: true, shop: webhookShop, ...result });
     return;
   }
 
