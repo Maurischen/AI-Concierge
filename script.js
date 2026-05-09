@@ -2,7 +2,8 @@ const state = {
   shopDomain: new URLSearchParams(window.location.search).get("shop") || document.currentScript?.dataset.shop || "demo",
   products: [],
   cartCount: 0,
-  lastRecommendations: []
+  lastRecommendations: [],
+  conversation: []
 };
 
 const catalogGrid = document.querySelector("#catalog-grid");
@@ -128,16 +129,24 @@ function renderRecommendations(payload, originalText) {
 
 async function handleCustomerNeed(text) {
   addMessage("user", `<p>${escapeHtml(text)}</p>`);
+  state.conversation.push({ role: "user", content: text });
   addMessage("ai", '<p class="typing">Checking current stock and fit...</p>');
 
   try {
     const payload = await api("/api/chat", {
       method: "POST",
-      body: JSON.stringify({ message: text, shop: state.shopDomain })
+      body: JSON.stringify({
+        message: text,
+        shop: state.shopDomain,
+        history: state.conversation.slice(-6)
+      })
     });
 
     messages.querySelector(".typing")?.closest(".message")?.remove();
     renderRecommendations(payload, text);
+    if (payload.message) {
+      state.conversation.push({ role: "assistant", content: payload.message });
+    }
   } catch (error) {
     messages.querySelector(".typing")?.closest(".message")?.remove();
     addMessage("ai", `<p>I could not complete that request yet. ${escapeHtml(error.message)}</p>`);

@@ -79,16 +79,23 @@ async function handleApi(request, response) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/chat") {
-    const { message, shop } = await readJson(request);
+    const { message, shop, history = [] } = await readJson(request);
     const shopDomain = normalizeShopDomain(shop || requestedShop);
     if (!message || typeof message !== "string") {
       sendJson(response, 400, { error: "Message is required." });
       return;
     }
 
+    const userContext = Array.isArray(history)
+      ? history
+          .filter((item) => item?.role === "user" && typeof item.content === "string")
+          .slice(-4)
+          .map((item) => item.content)
+          .join(" ")
+      : message;
     const products = await loadCatalog(shopDomain);
     const shopConfig = await getShop(shopDomain);
-    const clarification = needsClarification(message);
+    const clarification = needsClarification(userContext);
     if (clarification.shouldClarify) {
       sendJson(response, 200, {
         shop: shopConfig,
@@ -99,10 +106,10 @@ async function handleApi(request, response) {
       return;
     }
 
-    const recommendations = recommendProducts(products, message);
+    const recommendations = recommendProducts(products, userContext);
 
     try {
-      const openaiResponse = await createOpenAIRecommendation({ message, products: recommendations });
+      const openaiResponse = await createOpenAIRecommendation({ message: userContext, products: recommendations });
       sendJson(response, 200, {
         shop: shopConfig,
         type: "recommendations",
