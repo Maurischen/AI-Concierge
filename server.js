@@ -9,6 +9,7 @@ import {
   normalizeShopDomain,
   removeCatalogProduct,
   updateInventoryLevel,
+  upsertShop,
   upsertCatalogProduct
 } from "./lib/catalog-store.js";
 import { applyCompatibilityContext } from "./lib/compatibility.js";
@@ -295,7 +296,8 @@ async function readRawBody(request) {
 
 async function serveStatic(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
-  const requestedPath = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
+  const isShopifyAdminEmbed = url.pathname === "/" && (url.searchParams.has("host") || url.searchParams.get("embedded") === "1");
+  const requestedPath = isShopifyAdminEmbed ? "admin.html" : url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
   const safePath = normalize(requestedPath).replace(/^(\.\.[/\\])+/, "");
   const filePath = join(root, safePath);
 
