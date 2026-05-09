@@ -79,6 +79,32 @@ async function handleApi(request, response) {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/debug/search") {
+    const products = await loadCatalog(requestedShop);
+    const q = String(url.searchParams.get("q") || "").toLowerCase();
+    const matches = products
+      .filter((product) =>
+        [product.name, product.category, product.description, ...(product.specs || []), ...(product.tags || [])]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      )
+      .slice(0, 30)
+      .map((product) => ({
+        name: product.name,
+        category: product.category,
+        price: product.price,
+        stock: product.stock,
+        specs: product.specs,
+        tags: product.tags,
+        collections: product.collections,
+        metafields: product.metafields
+      }));
+
+    sendJson(response, 200, { query: q, count: matches.length, matches });
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/chat") {
     const { message, shop, history = [] } = await readJson(request);
     const shopDomain = normalizeShopDomain(shop || requestedShop);
