@@ -86,8 +86,16 @@ function extractModelTokens(text) {
   ];
 }
 
+function extractDeviceModelPhrase(text) {
+  const raw = normalizeIntentText(text);
+  const match =
+    raw.match(/\b(?:i have|for my|for a|for an|compatible with|work with|works with)\s+(?:an?\s+)?([a-z0-9][a-z0-9 -]{2,60}?)(?:\s+(?:laptop|notebook|desktop|pc|motherboard|board|graphics card|gpu|card)\b|\s+and\b|,|$)/i) ||
+    raw.match(/\b([a-z]{2,}\s+[a-z0-9-]*\d{2,}[a-z0-9-]*(?:\s+[a-z0-9-]+)?)\b/i);
+  return match?.[1]?.trim() || "";
+}
+
 function budgetIsOpen(text) {
-  return /\b(i don'?t have a budget|i don'?t know|not sure|no budget|without a budget|any budget|show me|what is available|what'?s available|what is in stock|what'?s in stock|available stock)\b/i.test(
+  return /\b(i don'?t have a budget|i don'?t know|not sure|no budget|without a budget|any budget|show me|what is available|what'?s available|what is in stock|what'?s in stock|available stock|upgrade|compatible|work with|works with|for my|i have)\b/i.test(
     text
   );
 }
@@ -151,6 +159,7 @@ function updateShoppingIntent(previousIntent, message) {
   const specs = extractIntentSpecs(latest);
   const sizes = extractSizes(latest);
   const modelTokens = extractModelTokens(latest);
+  const deviceModel = extractDeviceModelPhrase(latest) || baseIntent?.deviceModel || "";
   const brands = extractBrandsFromText(latest);
   const budget = extractBudget(latest) || baseIntent?.budget || null;
   const openBudget = budgetIsOpen(latest) || (!budget && baseIntent?.openBudget === true);
@@ -163,6 +172,7 @@ function updateShoppingIntent(previousIntent, message) {
     specs: specs.length > 0 ? specs : replacesSpecs ? [] : baseIntent?.specs || [],
     sizes: sizes.length > 0 ? sizes : replacesSpecs ? [] : baseIntent?.sizes || [],
     modelTokens: modelTokens.length > 0 ? modelTokens : replacesSpecs ? [] : baseIntent?.modelTokens || [],
+    deviceModel,
     brands: brands.length > 0 ? brands : baseIntent?.brands || []
   };
 }
@@ -171,6 +181,7 @@ function shoppingIntentToText(intent) {
   if (!intent?.productType) return "";
   return [
     intent.sizes?.join(" "),
+    intent.deviceModel ? `for ${intent.deviceModel}` : null,
     intent.modelTokens?.join(" "),
     intent.specs?.join(" "),
     intent.productType,
