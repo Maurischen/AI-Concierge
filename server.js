@@ -41,7 +41,7 @@ function buildUserContext(message, history) {
   const latestMessage = String(message || "").trim();
   const previousMessages = userMessages.slice(0, -1);
   const latestLooksLikeRefinement =
-    /\b(anything|something|one|option|options|range|budget|under|below|cheaper|more expensive|less expensive|that|those|it|them|yes|no|show me|what about)\b/i.test(
+    /\b(anything|something|one|option|options|range|budget|under|below|cheaper|more expensive|less expensive|that|those|it|them|yes|no|show me|what about|m\.?2|nvme|sata|2\.5|3\.5|external|portable|internal|atx|m-atx|matx|itx|am4|am5|lga|ddr4|ddr5|\d{3,4}\s?w)\b/i.test(
       latestMessage
     ) && !/\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|graphics card|gpu)\b/i.test(latestMessage);
 
