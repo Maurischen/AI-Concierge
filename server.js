@@ -30,7 +30,7 @@ const contentTypes = {
 };
 
 const productTypePattern =
-  /\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|hard drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i;
+  /\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|hard drive|flash drive|usb drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|ink|cartridge|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i;
 
 function normalizeIntentText(value = "") {
   return String(value).trim().replace(/\s+/g, " ");
@@ -44,6 +44,9 @@ function extractProductType(text) {
   if (["powerbank"].includes(type)) return "power bank";
   if (["memory"].includes(type)) return "ram";
   if (["hard drive"].includes(type)) return "hdd";
+  if (["usb drive"].includes(type)) return "flash drive";
+  if (["ink"].includes(type)) return "cartridge";
+  if (["toner"].includes(type)) return "cartridge";
   if (["processor"].includes(type)) return "cpu";
   if (["gpu"].includes(type)) return "graphics card";
   if (["backpack"].includes(type)) return "bag";
@@ -55,6 +58,20 @@ function extractBudget(text) {
   const terms = String(text).toLowerCase().replace(/(\d)\s+(\d{3})/g, "$1$2");
   const match = terms.match(/\b(?:under|below|less than|budget|around|about|range|up to)?\s*(?:r|zar|rand)?\s?(\d{2,6})\b/);
   return match ? match[1] : null;
+}
+
+function extractModelTokens(text) {
+  const terms = String(text || "").toLowerCase().replace(/(\d)\s+(\d{3})/g, "$1$2");
+  return [
+    ...new Set(
+      terms
+        .match(/\b[a-z]{1,6}\d{2,6}[a-z0-9-]*\b|\b\d{3,6}[a-z]?\b/g)
+        ?.filter((token) => {
+          const nearby = terms.slice(Math.max(0, terms.indexOf(token) - 14), terms.indexOf(token) + token.length + 14);
+          return !/\b(rand|zar|budget|under|below|around|about|mah|gb|tb|w)\b/.test(nearby);
+        }) || []
+    )
+  ];
 }
 
 function budgetIsOpen(text) {
@@ -104,21 +121,26 @@ function extractBrandsFromText(text) {
 
 function updateShoppingIntent(previousIntent, message) {
   const latest = normalizeIntentText(message);
-  const productType = extractProductType(latest) || previousIntent?.productType || null;
+  const latestProductType = extractProductType(latest);
+  const productTypeChanged = latestProductType && previousIntent?.productType && latestProductType !== previousIntent.productType;
+  const baseIntent = productTypeChanged ? null : previousIntent;
+  const productType = latestProductType || baseIntent?.productType || null;
   const specs = extractIntentSpecs(latest);
   const sizes = extractSizes(latest);
+  const modelTokens = extractModelTokens(latest);
   const brands = extractBrandsFromText(latest);
-  const budget = extractBudget(latest) || previousIntent?.budget || null;
-  const openBudget = budgetIsOpen(latest) || (!budget && previousIntent?.openBudget === true);
+  const budget = extractBudget(latest) || baseIntent?.budget || null;
+  const openBudget = budgetIsOpen(latest) || (!budget && baseIntent?.openBudget === true);
   const replacesSpecs = /\b(instead|rather|change|changed|different|other|now|actually)\b/i.test(latest);
 
   return {
     productType,
     budget,
     openBudget,
-    specs: specs.length > 0 ? specs : replacesSpecs ? [] : previousIntent?.specs || [],
-    sizes: sizes.length > 0 ? sizes : replacesSpecs ? [] : previousIntent?.sizes || [],
-    brands: brands.length > 0 ? brands : previousIntent?.brands || []
+    specs: specs.length > 0 ? specs : replacesSpecs ? [] : baseIntent?.specs || [],
+    sizes: sizes.length > 0 ? sizes : replacesSpecs ? [] : baseIntent?.sizes || [],
+    modelTokens: modelTokens.length > 0 ? modelTokens : replacesSpecs ? [] : baseIntent?.modelTokens || [],
+    brands: brands.length > 0 ? brands : baseIntent?.brands || []
   };
 }
 
@@ -126,6 +148,7 @@ function shoppingIntentToText(intent) {
   if (!intent?.productType) return "";
   return [
     intent.sizes?.join(" "),
+    intent.modelTokens?.join(" "),
     intent.specs?.join(" "),
     intent.productType,
     intent.brands?.length ? `preferred brands ${intent.brands.join(" or ")}` : null,
@@ -150,12 +173,10 @@ function buildUserContext(message, history) {
   const previousContext = previousMessages.slice(-3).join(" ");
   const latestTerms = latestMessage.toLowerCase();
   const contextTypeMatch = previousContext.match(
-    /\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|hard drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i
+    productTypePattern
   );
   const latestHasProductType =
-    /\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|hard drive|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|processor|graphics card|gpu|bag|backpack)\b/i.test(
-      latestMessage
-    );
+    productTypePattern.test(latestMessage);
   const latestHasReplacementSpec =
     /\b(instead|rather|different|other)\b/i.test(latestMessage) &&
     /\b(4k|8k|1080p|1440p|uhd|qhd|fhd|hdmi|vga|displayport|dp|usb[- ]?c|type[- ]?c|sata|nvme|m\.?2|ddr4|ddr5)\b/i.test(latestMessage);
@@ -167,7 +188,7 @@ function buildUserContext(message, history) {
   const latestLooksLikeRefinement =
     /\b(anything|something|one|option|options|range|budget|under|below|cheaper|more expensive|less expensive|that|those|it|them|yes|no|show me|what about|m\.?2|nvme|sata|2\.5|3\.5|external|portable|internal|atx|m-atx|matx|itx|am4|am5|lga|ddr4|ddr5|\d{3,4}\s?w)\b/i.test(
       latestMessage
-    ) && !/\b(cable|charger|power bank|powerbank|monitor|screen|display|ram|memory|ssd|hdd|laptop|desktop|keyboard|mouse|steering wheel|racing wheel|wheel|router|switch|printer|toner|webcam|headset|speaker|microphone|motherboard|cpu|graphics card|gpu)\b/i.test(latestMessage);
+    ) && !productTypePattern.test(latestMessage);
 
   if (latestLooksLikeRefinement && previousMessages.length > 0 && !latestTerms.includes("instead")) {
     return [...previousMessages.slice(-3), latestMessage].join(" ");
