@@ -90,7 +90,7 @@ function extractIntentSpecs(text) {
     /\b(8k|4k|uhd|qhd|fhd|1080p|1440p)\b/g,
     /\b(hdmi|vga|displayport|dp|usb[- ]?c|type[- ]?c|lightning|ethernet|lan)\b/g,
     /\b(wireless|rechargeable|rechargable|chargeable|bluetooth|2\.4\s?ghz)\b/g,
-    /\b(nvme|sata|m\.?2|2\.5|3\.5|ddr4|ddr5|am4|am5|lga\s?\d+|atx|m-atx|matx|itx)\b/g,
+    /\b(nvme|sata|m\.?2|2\.5|3\.5|ddr4|ddr5|am4|am5|lga\s?\d+|skt\s?\d+|socket\s?\d+|atx|m-atx|matx|itx)\b/g,
     /\b(\d{3,4}\s?w)\b/g
   ];
 
@@ -98,7 +98,14 @@ function extractIntentSpecs(text) {
     for (const match of terms.matchAll(pattern)) specs.push(match[1].replace(/\s+/g, " "));
   }
 
-  return [...new Set(specs)];
+  return [
+    ...new Set(
+      specs.map((spec) => {
+        const socket = spec.match(/^(skt|socket)\s?(\d+)$/i);
+        return socket ? `lga${socket[2]}` : spec;
+      })
+    )
+  ];
 }
 
 function extractSizes(text) {
@@ -189,7 +196,7 @@ function buildUserContext(message, history) {
   }
 
   const latestLooksLikeRefinement =
-    /\b(anything|something|one|option|options|range|budget|under|below|cheaper|more expensive|less expensive|that|those|it|them|yes|no|show me|what about|m\.?2|nvme|sata|2\.5|3\.5|external|portable|internal|atx|m-atx|matx|itx|am4|am5|lga|ddr4|ddr5|\d{3,4}\s?w)\b/i.test(
+    /\b(anything|something|one|option|options|range|budget|under|below|cheaper|more expensive|less expensive|that|those|it|them|yes|no|show me|what about|m\.?2|nvme|sata|2\.5|3\.5|external|portable|internal|atx|m-atx|matx|itx|am4|am5|lga|skt|socket|ddr4|ddr5|\d{3,4}\s?w)\b/i.test(
       latestMessage
     ) && !productTypePattern.test(latestMessage);
 
