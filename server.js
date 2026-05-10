@@ -222,21 +222,19 @@ function safeTimingEqual(left, right) {
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function signedAdminParams(request, url) {
-  const rawQuery = request.headers["x-shopify-admin-query"];
-  return new URLSearchParams(typeof rawQuery === "string" && rawQuery ? rawQuery : url.searchParams);
+function appUrl(request) {
+  return (process.env.SHOPIFY_APP_URL || `http://${request.headers.host}`).replace(/\/+$/, "");
 }
 
-function verifyShopifyAdminRequest(request, url, requestedShop) {
+function appScopes() {
+  return process.env.SHOPIFY_SCOPES || "read_products,read_inventory,read_locations,read_files";
+}
+
+function verifyShopifyHmac(params) {
   const secret = process.env.SHOPIFY_API_SECRET;
   if (!secret) return false;
-
-  const params = signedAdminParams(request, url);
   const hmac = params.get("hmac");
   if (!hmac) return false;
-
-  const signedShop = normalizeShopDomain(params.get("shop") || "");
-  if (signedShop && requestedShop !== signedShop) return false;
 
   const message = [...params.entries()]
     .filter(([key]) => !["hmac", "signature"].includes(key))
@@ -247,14 +245,73 @@ function verifyShopifyAdminRequest(request, url, requestedShop) {
   return safeTimingEqual(digest, hmac);
 }
 
+function verifyShopifyAdminRequest(request, url, requestedShop) {
+  const rawQuery = request.headers["x-shopify-admin-query"];
+  const params = new URLSearchParams(typeof rawQuery === "string" && rawQuery ? rawQuery : url.searchParams);
+  const signedShop = normalizeShopDomain(params.get("shop") || "");
+  if (signedShop && requestedShop !== signedShop) return false;
+  return verifyShopifyHmac(params);
+}
+
+function parseCookies(request) {
+  return Object.fromEntries(
+    String(request.headers.cookie || "")
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [key, ...value] = part.split("=");
+        return [key, decodeURIComponent(value.join("=") || "")];
+      })
+  );
+}
+
+function setOAuthStateCookie(response, state) {
+  const secure = process.env.RENDER ? " Secure;" : "";
+  response.setHeader("Set-Cookie", `ai_concierge_oauth_state=${encodeURIComponent(state)}; HttpOnly; SameSite=None;${secure} Path=/; Max-Age=600`);
+}
+
+function signAdminSession(shop, expiresAt) {
+  return crypto.createHmac("sha256", process.env.SHOPIFY_API_SECRET || "").update(`${shop}|${expiresAt}`).digest("hex");
+}
+
+function setAdminSessionCookie(response, shop) {
+  const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+  const signature = signAdminSession(shop, expiresAt);
+  const secure = process.env.RENDER ? " Secure;" : "";
+  response.setHeader("Set-Cookie", [
+    `ai_concierge_oauth_state=; HttpOnly; SameSite=None;${secure} Path=/; Max-Age=0`,
+    `ai_concierge_admin_session=${encodeURIComponent(`${shop}|${expiresAt}|${signature}`)}; HttpOnly; SameSite=None;${secure} Path=/; Max-Age=86400`
+  ]);
+}
+
+function verifyAdminSessionCookie(request, requestedShop) {
+  if (!process.env.SHOPIFY_API_SECRET) return false;
+  const session = parseCookies(request).ai_concierge_admin_session || "";
+  const [shop, expiresAtRaw, signature] = session.split("|");
+  const expiresAt = Number(expiresAtRaw);
+  if (!shop || !expiresAt || !signature) return false;
+  if (Date.now() > expiresAt) return false;
+  if (normalizeShopDomain(shop) !== requestedShop) return false;
+  return safeTimingEqual(signAdminSession(shop, expiresAt), signature);
+}
+
 function adminAuthorized(request, url) {
   const requestedShop = normalizeShopDomain(url.searchParams.get("shop") || request.headers["x-shop-domain"] || "demo");
   if (verifyShopifyAdminRequest(request, url, requestedShop)) return true;
+  if (verifyAdminSessionCookie(request, requestedShop)) return true;
 
-  const token = process.env.ADMIN_TOKEN;
-  if (!token && !process.env.RENDER) return true;
-  if (!token) return false;
-  return request.headers["x-admin-token"] === token || url.searchParams.get("token") === token;
+  return !process.env.RENDER;
+}
+
+function redirect(response, location) {
+  response.writeHead(302, { Location: location });
+  response.end();
+}
+
+function redirectTop(response, location) {
+  response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+  response.end(`<!doctype html><html><body><script>window.top.location.href=${JSON.stringify(location)};</script><a href="${location}">Continue to Shopify authorization</a></body></html>`);
 }
 
 function parseJsonObject(raw, fallback = {}) {
@@ -360,9 +417,92 @@ async function readRawBody(request) {
   return Buffer.concat(chunks);
 }
 
+async function beginOAuth(request, response, url) {
+  const shop = normalizeShopDomain(url.searchParams.get("shop"));
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(shop)) {
+    sendJson(response, 400, { error: "A valid myshopify.com shop domain is required." });
+    return;
+  }
+  if (!process.env.SHOPIFY_API_KEY || !process.env.SHOPIFY_API_SECRET) {
+    sendJson(response, 500, { error: "SHOPIFY_API_KEY and SHOPIFY_API_SECRET are required for OAuth." });
+    return;
+  }
+
+  const state = crypto.randomBytes(16).toString("hex");
+  const authUrl = new URL(`https://${shop}/admin/oauth/authorize`);
+  authUrl.searchParams.set("client_id", process.env.SHOPIFY_API_KEY);
+  authUrl.searchParams.set("scope", appScopes());
+  authUrl.searchParams.set("redirect_uri", `${appUrl(request)}/auth/callback`);
+  authUrl.searchParams.set("state", state);
+  setOAuthStateCookie(response, state);
+  redirectTop(response, authUrl.toString());
+}
+
+async function finishOAuth(request, response, url) {
+  const params = url.searchParams;
+  const shop = normalizeShopDomain(params.get("shop"));
+  const code = params.get("code");
+  const state = params.get("state");
+  const cookies = parseCookies(request);
+
+  if (!verifyShopifyHmac(params)) {
+    sendJson(response, 401, { error: "Invalid Shopify OAuth signature." });
+    return;
+  }
+  if (!state || cookies.ai_concierge_oauth_state !== state) {
+    sendJson(response, 401, { error: "Invalid Shopify OAuth state." });
+    return;
+  }
+  if (!shop || !code) {
+    sendJson(response, 400, { error: "Shop and OAuth code are required." });
+    return;
+  }
+
+  const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: process.env.SHOPIFY_API_KEY,
+      client_secret: process.env.SHOPIFY_API_SECRET,
+      code
+    })
+  });
+  const tokenPayload = await tokenResponse.json();
+  if (!tokenResponse.ok || !tokenPayload.access_token) {
+    sendJson(response, 400, { error: tokenPayload.error_description || tokenPayload.error || "Could not complete Shopify OAuth." });
+    return;
+  }
+
+  const existing = await getShop(shop);
+  await upsertShop({
+    shopDomain: shop,
+    accessToken: tokenPayload.access_token,
+    storefrontName: existing?.storefrontName || shop,
+    marketType: existing?.marketType || null,
+    assistantName: existing?.assistantName || "AI Concierge",
+    themeColor: existing?.themeColor || null,
+    logoUrl: existing?.logoUrl || null,
+    supportEmail: existing?.supportEmail || null,
+    salesEmail: existing?.salesEmail || null,
+    widgetConfig: existing?.widgetConfig || {},
+    preferredBrands: existing?.preferredBrands || {}
+  });
+
+  setAdminSessionCookie(response, shop);
+  redirect(response, `${appUrl(request)}/admin.html?shop=${encodeURIComponent(shop)}`);
+}
+
 async function serveStatic(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const isShopifyAdminEmbed = url.pathname === "/" && (url.searchParams.has("host") || url.searchParams.get("embedded") === "1");
+  if (isShopifyAdminEmbed) {
+    const requestedShop = normalizeShopDomain(url.searchParams.get("shop"));
+    const shop = requestedShop ? await getShop(requestedShop) : null;
+    if (requestedShop && !shop?.accessToken) {
+      redirect(response, `/auth?shop=${encodeURIComponent(requestedShop)}`);
+      return;
+    }
+  }
   const requestedPath = isShopifyAdminEmbed ? "admin.html" : url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
   const safePath = normalize(requestedPath).replace(/^(\.\.[/\\])+/, "");
   const filePath = join(root, safePath);
@@ -403,7 +543,7 @@ async function handleApi(request, response) {
 
   if (url.pathname === "/api/admin/shop") {
     if (!adminAuthorized(request, url)) {
-      sendJson(response, 401, { error: "Admin authentication is required. Open this page from Shopify Admin or enter ADMIN_TOKEN." });
+      sendJson(response, 401, { error: "Shopify Admin authentication is required. Open this page from Shopify Admin." });
       return;
     }
 
@@ -436,7 +576,7 @@ async function handleApi(request, response) {
 
   if (request.method === "GET" && url.pathname === "/api/admin/files") {
     if (!adminAuthorized(request, url)) {
-      sendJson(response, 401, { error: "Admin authentication is required. Open this page from Shopify Admin or enter ADMIN_TOKEN." });
+      sendJson(response, 401, { error: "Shopify Admin authentication is required. Open this page from Shopify Admin." });
       return;
     }
 
@@ -736,6 +876,16 @@ async function handleApi(request, response) {
 
 const server = createServer(async (request, response) => {
   try {
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    if (request.method === "GET" && url.pathname === "/auth") {
+      await beginOAuth(request, response, url);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/auth/callback") {
+      await finishOAuth(request, response, url);
+      return;
+    }
+
     if (request.url.startsWith("/api/")) {
       await handleApi(request, response);
       return;

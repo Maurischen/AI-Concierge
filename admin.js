@@ -1,8 +1,6 @@
 const form = document.querySelector("#admin-form");
 const statusNode = document.querySelector("#admin-status");
 const shopInput = document.querySelector("#shop-domain");
-const tokenInput = document.querySelector("#admin-token");
-const snippetNode = document.querySelector("#widget-snippet");
 const authNote = document.querySelector("#admin-auth-note");
 const filePicker = document.querySelector("#file-picker");
 const logoPreview = document.querySelector("#logo-preview");
@@ -15,10 +13,8 @@ const signedAdminQuery = window.location.search.replace(/^\?/, "");
 const hasShopifyAdminAuth = params.has("hmac") && params.has("shop");
 
 shopInput.value = params.get("shop") || localStorage.getItem("aiConciergeAdminShop") || "";
-tokenInput.value = params.get("token") || localStorage.getItem("aiConciergeAdminToken") || "";
 if (hasShopifyAdminAuth) {
   authNote.textContent = "Authenticated through Shopify Admin.";
-  tokenInput.closest("label").hidden = true;
 }
 
 function setStatus(message) {
@@ -109,8 +105,7 @@ function collectBrandRules() {
 
 function adminHeaders() {
   const headers = {
-    "Content-Type": "application/json",
-    "X-Admin-Token": tokenInput.value.trim()
+    "Content-Type": "application/json"
   };
   if (signedAdminQuery) headers["X-Shopify-Admin-Query"] = signedAdminQuery;
   return headers;
@@ -119,14 +114,6 @@ function adminHeaders() {
 function shopQuery() {
   const shop = shopInput.value.trim();
   return `shop=${encodeURIComponent(shop)}`;
-}
-
-function widgetSnippet(shop) {
-  return `<script src="${window.location.origin}/widget.js" data-shop="${shop}" async></script>`;
-}
-
-function renderSnippet() {
-  snippetNode.textContent = widgetSnippet(shopInput.value.trim() || "your-store.myshopify.com");
 }
 
 function renderLogoPreview() {
@@ -156,7 +143,6 @@ function fillForm(shop) {
   form.marketType.value = shop?.marketType || "";
   form.preferredBrands.value = JSON.stringify(shop?.preferredBrands || {}, null, 2);
   renderBrandRules(shop?.preferredBrands || {});
-  renderSnippet();
   renderLogoPreview();
 }
 
@@ -167,7 +153,6 @@ async function loadShop() {
   }
 
   localStorage.setItem("aiConciergeAdminShop", shopInput.value.trim());
-  localStorage.setItem("aiConciergeAdminToken", tokenInput.value.trim());
   setStatus("Loading...");
 
   const response = await fetch(`/api/admin/shop?${shopQuery()}`, {
@@ -218,7 +203,6 @@ async function loadShopifyFiles() {
 async function saveShop(event) {
   event.preventDefault();
   localStorage.setItem("aiConciergeAdminShop", shopInput.value.trim());
-  localStorage.setItem("aiConciergeAdminToken", tokenInput.value.trim());
   setStatus("Saving...");
 
   let preferredBrands = collectBrandRules();
@@ -285,7 +269,6 @@ filePicker.addEventListener("click", (event) => {
   setStatus("Logo selected. Save settings to apply it.");
 });
 form.addEventListener("submit", (event) => saveShop(event).catch((error) => setStatus(error.message)));
-shopInput.addEventListener("input", renderSnippet);
 form.logoUrl.addEventListener("input", renderLogoPreview);
 form.preferredBrands.addEventListener("blur", () => {
   try {
@@ -307,7 +290,6 @@ form.themeColorHex.addEventListener("blur", () => {
   if (normalized) syncThemeColour(normalized);
 });
 
-renderSnippet();
 renderLogoPreview();
 syncThemeColour(form.themeColor.value);
 if (shopInput.value) {

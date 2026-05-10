@@ -100,34 +100,32 @@ Or register webhooks for all registered shops:
 npm run register:webhooks
 ```
 
-Each storefront should load the assistant with its shop domain:
-
-```html
-<iframe
-  src="https://your-render-url.onrender.com?shop=first-store.myshopify.com"
-  style="width: 100%; height: 800px; border: 0;"
-></iframe>
-```
-
-Or use the floating storefront widget:
-
-```html
-<script src="https://your-render-url.onrender.com/widget.js" data-shop="first-store.myshopify.com" async></script>
-```
-
-For production, use the Shopify theme app embed in `extensions/ai-concierge-theme` instead of custom liquid. Deploy the extension with Shopify CLI, then enable **AI Concierge** in **Online Store > Themes > Customize > App embeds**. The raw script remains useful as a fallback for quick testing.
+Each storefront should load the assistant through the Shopify theme app embed in `extensions/ai-concierge-theme`. Deploy the extension with Shopify CLI, then enable **AI Concierge** in **Online Store > Themes > Customize > App embeds**. No custom liquid or pasted script is needed.
 
 ## Admin UI
 
-Set `ADMIN_TOKEN` in Render, then open:
+Open the app from Shopify Admin > Apps. If the shop has not authorized the app yet, it redirects through Shopify OAuth and stores the offline Admin API token automatically.
 
 ```text
-https://your-render-url.onrender.com/admin.html?shop=your-store.myshopify.com
+https://your-render-url.onrender.com/auth?shop=your-store.myshopify.com
 ```
 
-The admin UI can configure the storefront name, AI chat name, logo URL, theme colour, sales/support emails, market type, widget launcher label/position, panel size, chat copy, quick prompts, and preferred brands by product category. It also generates the widget snippet for fallback testing.
+Render must have these Shopify app values set:
 
-When the app is opened from Shopify Admin, Shopify's signed app URL authenticates the admin settings page automatically. If you open `/admin.html` directly, use your private `ADMIN_TOKEN`.
+```text
+SHOPIFY_API_KEY
+SHOPIFY_API_SECRET
+SHOPIFY_APP_URL=https://your-render-url.onrender.com
+SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files
+```
+
+In the Shopify Partner app setup, add this redirect URL:
+
+```text
+https://your-render-url.onrender.com/auth/callback
+```
+
+The admin UI can configure the storefront name, AI chat name, logo URL, theme colour, sales/support emails, market type, widget launcher label/position, panel size, chat copy, quick prompts, and preferred brands by product category. Settings save through Shopify-signed admin requests only.
 
 To pick a logo from Shopify, upload the image in **Content > Files** in Shopify first, then use **Choose from Shopify files** in the AI Concierge admin screen.
 
