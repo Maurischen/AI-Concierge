@@ -165,6 +165,10 @@ function updateShoppingIntent(previousIntent, message) {
   const sizes = extractSizes(latest);
   const modelTokens = extractModelTokens(latest);
   const deviceModel = extractDeviceModelPhrase(latest) || baseIntent?.deviceModel || "";
+  const deviceKind =
+    latest.match(/\b(laptop|notebook|desktop|pc|motherboard|mainboard|graphics card|gpu)\b/i)?.[1]?.toLowerCase() ||
+    baseIntent?.deviceKind ||
+    "";
   const brands = extractBrandsFromText(latest);
   const budget = extractBudget(latest) || baseIntent?.budget || null;
   const openBudget = budgetIsOpen(latest) || (!budget && baseIntent?.openBudget === true);
@@ -178,6 +182,7 @@ function updateShoppingIntent(previousIntent, message) {
     sizes: sizes.length > 0 ? sizes : replacesSpecs ? [] : baseIntent?.sizes || [],
     modelTokens: modelTokens.length > 0 ? modelTokens : replacesSpecs ? [] : baseIntent?.modelTokens || [],
     deviceModel,
+    deviceKind,
     brands: brands.length > 0 ? brands : baseIntent?.brands || []
   };
 }
@@ -193,7 +198,7 @@ function shoppingIntentToText(intent) {
   if (!intent?.productType) return "";
   return [
     intent.sizes?.join(" "),
-    intent.deviceModel ? `for ${intent.deviceModel}` : null,
+    intent.deviceModel ? `for ${intent.deviceModel}${intent.deviceKind ? ` ${intent.deviceKind}` : ""}` : intent.deviceKind ? `for ${intent.deviceKind}` : null,
     intent.modelTokens?.join(" "),
     intent.specs?.join(" "),
     intent.productType,
