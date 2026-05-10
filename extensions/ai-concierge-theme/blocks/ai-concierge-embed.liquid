@@ -1,0 +1,71 @@
+{% liquid
+  assign app_url = block.settings.app_url | strip
+  unless app_url contains 'http://'
+    unless app_url contains 'https://'
+      assign app_url = app_url | prepend: 'https://'
+    endunless
+  endunless
+  if app_url == 'https://'
+    assign app_url = 'https://ai-concierge-qkhn.onrender.com'
+  endif
+  assign last_character = app_url | slice: -1
+  if last_character == '/'
+    assign app_url_length = app_url.size | minus: 1
+    assign app_url = app_url | slice: 0, app_url_length
+  endif
+  if app_url == ''
+    assign app_url = app_url | prepend: 'https://'
+  endif
+%}
+
+<script
+  src="{{ app_url }}/widget.js"
+  data-shop="{{ shop.permanent_domain }}"
+  data-label="{{ block.settings.launcher_label | escape }}"
+  data-position="{{ block.settings.position }}"
+  data-theme-color="{{ block.settings.theme_color }}"
+  async
+></script>
+
+{% schema %}
+{
+  "name": "AI Concierge",
+  "target": "body",
+  "settings": [
+    {
+      "type": "text",
+      "id": "app_url",
+      "label": "App URL",
+      "default": "https://ai-concierge-qkhn.onrender.com"
+    },
+    {
+      "type": "text",
+      "id": "launcher_label",
+      "label": "Fallback launcher label",
+      "default": "AI Concierge"
+    },
+    {
+      "type": "select",
+      "id": "position",
+      "label": "Fallback position",
+      "default": "bottom-right",
+      "options": [
+        {
+          "value": "bottom-right",
+          "label": "Bottom right"
+        },
+        {
+          "value": "bottom-left",
+          "label": "Bottom left"
+        }
+      ]
+    },
+    {
+      "type": "color",
+      "id": "theme_color",
+      "label": "Fallback colour",
+      "default": "#007a6a"
+    }
+  ]
+}
+{% endschema %}

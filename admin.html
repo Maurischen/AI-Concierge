@@ -12,7 +12,7 @@
       <header class="admin-header">
         <div>
           <p class="eyebrow">AI Concierge</p>
-          <h1>Admin</h1>
+          <h1>App settings</h1>
         </div>
         <a class="admin-link" href="/" target="_blank" rel="noopener noreferrer">Open storefront</a>
       </header>
@@ -32,32 +32,93 @@
           <button type="button" id="load-shop">Load settings</button>
         </section>
 
-        <section class="admin-section">
+        <section class="admin-section wide">
           <h2>Branding</h2>
-          <label>
-            Storefront name
-            <input name="storefrontName" />
-          </label>
-          <label>
-            AI chat name
-            <input name="assistantName" placeholder="AI Concierge" />
-          </label>
-          <label>
-            Logo URL
-            <input name="logoUrl" placeholder="https://..." />
-          </label>
-          <div class="logo-tools">
-            <button type="button" id="load-files">Choose from Shopify files</button>
-            <div class="logo-preview" id="logo-preview" aria-label="Selected logo preview"></div>
-          </div>
-          <div class="colour-control">
+          <div class="settings-grid">
             <label>
-              Theme colour
-              <input name="themeColor" type="color" value="#007a6a" />
+              Storefront name
+              <input name="storefrontName" />
             </label>
             <label>
-              Hex code
-              <input name="themeColorHex" placeholder="#007a6a" spellcheck="false" />
+              AI chat name
+              <input name="assistantName" placeholder="AI Concierge" />
+            </label>
+            <label class="wide-field">
+              Logo URL
+              <input name="logoUrl" placeholder="https://..." />
+            </label>
+            <div class="logo-tools wide-field">
+              <button type="button" id="load-files">Choose from Shopify files</button>
+              <div class="logo-preview" id="logo-preview" aria-label="Selected logo preview"></div>
+            </div>
+            <div class="colour-control wide-field">
+              <label>
+                Theme colour
+                <input name="themeColor" type="color" value="#007a6a" />
+              </label>
+              <label>
+                Hex code
+                <input name="themeColorHex" placeholder="#007a6a" spellcheck="false" />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-section wide">
+          <h2>Widget Display</h2>
+          <div class="settings-grid">
+            <label>
+              Launcher label
+              <input name="launcherLabel" placeholder="AI Concierge" />
+            </label>
+            <label>
+              Launcher position
+              <select name="launcherPosition">
+                <option value="bottom-right">Bottom right</option>
+                <option value="bottom-left">Bottom left</option>
+              </select>
+            </label>
+            <label>
+              Panel width
+              <input name="panelWidth" type="number" min="320" max="520" step="10" />
+            </label>
+            <label>
+              Panel height
+              <input name="panelHeight" type="number" min="420" max="760" step="10" />
+            </label>
+          </div>
+        </section>
+
+        <section class="admin-section wide">
+          <h2>Chat Display</h2>
+          <div class="settings-grid">
+            <label>
+              Header title
+              <input name="chatHeading" placeholder="Find the right gear" />
+            </label>
+            <label>
+              Header eyebrow
+              <input name="chatSubheading" placeholder="Live guidance" />
+            </label>
+            <label class="wide-field">
+              Welcome message
+              <textarea name="welcomeMessage" rows="3"></textarea>
+            </label>
+            <label class="wide-field">
+              Input placeholder
+              <input name="inputPlaceholder" />
+            </label>
+            <label>
+              Quick prompt 1
+              <input name="quickPrompt1" />
+            </label>
+            <label>
+              Quick prompt 2
+              <input name="quickPrompt2" />
+            </label>
+            <label>
+              Quick prompt 3
+              <input name="quickPrompt3" />
             </label>
           </div>
         </section>
@@ -80,10 +141,16 @@
 
         <section class="admin-section wide">
           <h2>Preferred Brands</h2>
-          <label>
-            JSON rules
-            <textarea name="preferredBrands" rows="7" spellcheck="false" placeholder='{"cable":["UGreen"],"bag":["Port Designs"]}'></textarea>
-          </label>
+          <p>Set brand preference rules per product category. Examples: cable -> UGreen, monitor -> AOC, Surge.</p>
+          <div class="brand-rules" id="brand-rules"></div>
+          <button type="button" id="add-brand-rule">Add category rule</button>
+          <details>
+            <summary>Advanced JSON</summary>
+            <label>
+              JSON rules
+              <textarea name="preferredBrands" rows="7" spellcheck="false" placeholder='{"cable":["UGreen"],"bag":["Port Designs"]}'></textarea>
+            </label>
+          </details>
         </section>
 
         <section class="admin-section wide">
@@ -93,8 +160,8 @@
         </section>
 
         <section class="admin-section wide">
-          <h2>Widget Install</h2>
-          <p>Paste this before the closing body tag in Shopify, or add it through a theme/custom-liquid block.</p>
+          <h2>Theme App Embed</h2>
+          <p>Use Shopify Theme Editor > App embeds > AI Concierge. The script below remains as a fallback for testing only.</p>
           <pre id="widget-snippet"></pre>
         </section>
 

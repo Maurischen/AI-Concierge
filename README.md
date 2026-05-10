@@ -115,6 +115,8 @@ Or use the floating storefront widget:
 <script src="https://your-render-url.onrender.com/widget.js" data-shop="first-store.myshopify.com" async></script>
 ```
 
+For production, use the Shopify theme app embed in `extensions/ai-concierge-theme` instead of custom liquid. Deploy the extension with Shopify CLI, then enable **AI Concierge** in **Online Store > Themes > Customize > App embeds**. The raw script remains useful as a fallback for quick testing.
+
 ## Admin UI
 
 Set `ADMIN_TOKEN` in Render, then open:
@@ -123,7 +125,7 @@ Set `ADMIN_TOKEN` in Render, then open:
 https://your-render-url.onrender.com/admin.html?shop=your-store.myshopify.com
 ```
 
-The admin UI can configure the storefront name, AI chat name, logo URL, theme colour, sales/support emails, market type, and preferred brand JSON rules. It also generates the widget snippet for the selected shop.
+The admin UI can configure the storefront name, AI chat name, logo URL, theme colour, sales/support emails, market type, widget launcher label/position, panel size, chat copy, quick prompts, and preferred brands by product category. It also generates the widget snippet for fallback testing.
 
 When the app is opened from Shopify Admin, Shopify's signed app URL authenticates the admin settings page automatically. If you open `/admin.html` directly, use your private `ADMIN_TOKEN`.
 

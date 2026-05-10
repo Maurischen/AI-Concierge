@@ -261,6 +261,32 @@ function parseJsonObject(raw, fallback = {}) {
   }
 }
 
+function normalizeWidgetConfig(config = {}) {
+  const parsed = parseJsonObject(config, {});
+  return {
+    launcherLabel: String(parsed.launcherLabel || "AI Concierge").slice(0, 60),
+    launcherPosition: ["bottom-right", "bottom-left"].includes(parsed.launcherPosition) ? parsed.launcherPosition : "bottom-right",
+    panelWidth: Math.min(520, Math.max(320, Number(parsed.panelWidth || 390))),
+    panelHeight: Math.min(760, Math.max(420, Number(parsed.panelHeight || 680))),
+    chatHeading: String(parsed.chatHeading || "Find the right gear").slice(0, 80),
+    chatSubheading: String(parsed.chatSubheading || "Live guidance").slice(0, 80),
+    welcomeMessage: String(
+      parsed.welcomeMessage ||
+        "Hi, I’m your AI Concierge. What should I call you while we shop?"
+    ).slice(0, 260),
+    inputPlaceholder: String(parsed.inputPlaceholder || "Tell me what you need, your budget, and how you'll use it...").slice(0, 160),
+    quickPrompts: Array.isArray(parsed.quickPrompts)
+      ? parsed.quickPrompts.map((prompt) => String(prompt).trim()).filter(Boolean).slice(0, 3)
+      : ["Gaming + design", "Home office", "Accessories"]
+  };
+}
+
+function publicShopConfig(shop) {
+  if (!shop) return null;
+  const { accessToken, ...publicShop } = shop;
+  return publicShop;
+}
+
 function numericShopifyId(gid) {
   return String(gid || "").split("/").pop();
 }
@@ -360,7 +386,13 @@ async function handleApi(request, response) {
   if (request.method === "GET" && url.pathname === "/api/products") {
     const products = await loadCatalog(requestedShop);
     const shop = await getShop(requestedShop);
-    sendJson(response, 200, { shop, products });
+    sendJson(response, 200, { shop: publicShopConfig(shop), products });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/shop-config") {
+    const shop = await getShop(requestedShop);
+    sendJson(response, 200, { shop: publicShopConfig(shop) });
     return;
   }
 
@@ -372,7 +404,7 @@ async function handleApi(request, response) {
 
     if (request.method === "GET") {
       const shop = await getShop(requestedShop);
-      sendJson(response, 200, { shop });
+      sendJson(response, 200, { shop: publicShopConfig(shop) });
       return;
     }
 
@@ -389,9 +421,10 @@ async function handleApi(request, response) {
         logoUrl: body.logoUrl || null,
         supportEmail: body.supportEmail || null,
         salesEmail: body.salesEmail || null,
+        widgetConfig: normalizeWidgetConfig(body.widgetConfig),
         preferredBrands: parseJsonObject(body.preferredBrands, {})
       });
-      sendJson(response, 200, { shop });
+      sendJson(response, 200, { shop: publicShopConfig(shop) });
       return;
     }
   }

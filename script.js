@@ -483,29 +483,47 @@ form.addEventListener("submit", (event) => {
   handleCustomerNeed(text);
 });
 
-async function init() {
-  const payload = await api("/api/products");
-  if (payload.shop?.assistantName) {
-    document.querySelector(".chat-header h2").textContent = payload.shop.assistantName;
-    document.querySelector(".store-header h1").textContent = payload.shop.assistantName;
+function applyShopConfig(shop = {}) {
+  const widgetConfig = shop.widgetConfig || {};
+  const assistantName = shop.assistantName || "AI Concierge";
+  const chatHeading = widgetConfig.chatHeading || assistantName;
+  const chatSubheading = widgetConfig.chatSubheading || "Live guidance";
+
+  document.querySelector(".chat-header h2").textContent = chatHeading;
+  document.querySelector(".chat-header .eyebrow").textContent = chatSubheading;
+  document.querySelector(".store-header h1").textContent = assistantName;
+
+  if (shop.themeColor) {
+    document.documentElement.style.setProperty("--accent", shop.themeColor);
   }
-  if (payload.shop?.themeColor) {
-    document.documentElement.style.setProperty("--accent", payload.shop.themeColor);
-  }
-  if (payload.shop?.logoUrl) {
-    const logoMarkup = `<img class="brand-logo" src="${escapeHtml(payload.shop.logoUrl)}" alt="${escapeHtml(payload.shop.storefrontName || payload.shop.assistantName || "Store logo")}" />`;
+  if (shop.logoUrl) {
+    const logoMarkup = `<img class="brand-logo" src="${escapeHtml(shop.logoUrl)}" alt="${escapeHtml(shop.storefrontName || assistantName || "Store logo")}" />`;
     document.querySelector(".store-header .eyebrow").insertAdjacentHTML("beforebegin", logoMarkup);
     document.querySelector(".chat-header .eyebrow").insertAdjacentHTML("beforebegin", logoMarkup);
   }
-  if (payload.shop?.salesEmail) {
-    document.body.dataset.salesEmail = payload.shop.salesEmail;
+  if (shop.salesEmail) {
+    document.body.dataset.salesEmail = shop.salesEmail;
   }
+  if (widgetConfig.inputPlaceholder) {
+    input.placeholder = widgetConfig.inputPlaceholder;
+  }
+  if (Array.isArray(widgetConfig.quickPrompts) && widgetConfig.quickPrompts.length > 0) {
+    document.querySelector(".quick-prompts").innerHTML = widgetConfig.quickPrompts
+      .slice(0, 3)
+      .map((prompt) => `<button type="button" data-prompt="${escapeHtml(prompt)}">${escapeHtml(prompt)}</button>`)
+      .join("");
+  }
+}
+
+async function init() {
+  const payload = await api("/api/products");
+  applyShopConfig(payload.shop || {});
   state.products = payload.products;
   renderCatalog();
   addMessage(
     "ai",
     state.awaitingName
-      ? "<p>Hi, I’m your AI Concierge. What should I call you while we shop?</p>"
+      ? `<p>${escapeHtml(payload.shop?.widgetConfig?.welcomeMessage || "Hi, I’m your AI Concierge. What should I call you while we shop?")}</p>`
       : `<p>Welcome back, ${escapeHtml(state.customerName)}. Tell me what you’re looking for, your budget, and any must-haves. I’ll recommend products from available stock and explain why they fit.</p>`
   );
 }

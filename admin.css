@@ -1,5 +1,5 @@
 .admin-page {
-  background: #f7fafb;
+  background: #f1f2f4;
 }
 
 .admin-shell {
@@ -18,7 +18,8 @@
 }
 
 .admin-header h1 {
-  font-size: 2.2rem;
+  font-size: 1.8rem;
+  letter-spacing: 0;
 }
 
 .admin-link {
@@ -36,16 +37,17 @@
 .admin-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 14px;
 }
 
 .admin-section {
   display: grid;
-  gap: 12px;
-  border: 1px solid var(--line);
+  gap: 14px;
+  border: 1px solid #d9d9d9;
   border-radius: 8px;
   background: var(--panel);
-  padding: 18px;
+  padding: 20px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
 }
 
 .admin-section.wide,
@@ -57,6 +59,16 @@
   font-size: 1.1rem;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wide-field {
+  grid-column: 1 / -1;
+}
+
 .admin-section label {
   display: grid;
   gap: 6px;
@@ -66,6 +78,7 @@
 }
 
 .admin-section input,
+.admin-section select,
 .admin-section textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -73,6 +86,13 @@
   padding: 10px 12px;
   color: var(--ink);
   background: #fff;
+}
+
+.admin-section input:focus,
+.admin-section select:focus,
+.admin-section textarea:focus {
+  outline: 2px solid rgba(0, 122, 106, 0.25);
+  border-color: var(--accent);
 }
 
 .admin-section input[type="color"] {
@@ -86,6 +106,42 @@
   grid-template-columns: 96px minmax(140px, 1fr);
   gap: 12px;
   align-items: end;
+}
+
+.brand-rules {
+  display: grid;
+  gap: 10px;
+}
+
+.brand-rule {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafbfb;
+}
+
+.brand-rule button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--danger);
+  padding: 10px 12px;
+  font-weight: 760;
+}
+
+.admin-section details {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-section summary {
+  cursor: pointer;
+  color: var(--accent-dark);
+  font-weight: 760;
 }
 
 .logo-tools {
@@ -163,7 +219,8 @@
 }
 
 .admin-actions button,
-#load-shop {
+#load-shop,
+#add-brand-rule {
   width: fit-content;
   border: 0;
   border-radius: 6px;
@@ -179,11 +236,13 @@
 }
 
 @media (max-width: 760px) {
-  .admin-form {
+  .admin-form,
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 
-  .colour-control {
+  .colour-control,
+  .brand-rule {
     grid-template-columns: 1fr;
   }
 }
