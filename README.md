@@ -125,6 +125,10 @@ https://your-render-url.onrender.com/admin.html?shop=your-store.myshopify.com
 
 The admin UI can configure the storefront name, AI chat name, logo URL, theme colour, sales/support emails, market type, and preferred brand JSON rules. It also generates the widget snippet for the selected shop.
 
+When the app is opened from Shopify Admin, Shopify's signed app URL authenticates the admin settings page automatically. If you open `/admin.html` directly, use your private `ADMIN_TOKEN`.
+
+To pick a logo from Shopify, upload the image in **Content > Files** in Shopify first, then use **Choose from Shopify files** in the AI Concierge admin screen.
+
 ## Shopify Catalog Sync
 
 Do not put your full catalog in `script.js`. The frontend calls the backend, and the backend loads `data/catalog-cache.json`. If that cache does not exist yet, it falls back to the small demo catalog.
@@ -154,10 +158,12 @@ Set `SHOPIFY_WEBHOOK_SECRET` in production so webhook requests are verified befo
 Your Shopify app/custom app needs these Admin API scopes:
 
 ```text
-read_products,read_inventory,read_locations
+read_products,read_inventory,read_locations,read_files
 ```
 
 `read_inventory` lets the app read inventory levels by variant. `read_locations` lets it read the location name/address attached to those inventory levels, which is what powers questions like "is this available at the Windhoek branch?" If you add `read_locations` after the app was already installed, reinstall or re-authorize the Shopify app/custom app token, update the token in Render, redeploy if needed, then run:
+
+`read_files` lets the admin UI list image files from Shopify Files so you can choose a stored logo without pasting a URL manually.
 
 Only active Shopify locations with `fulfillsOnlineOrders: true` are used for customer-facing availability, so supplier/internal locations are not shown as pickup or nearby store options.
 

@@ -26,6 +26,13 @@
   font-weight: 760;
 }
 
+.admin-auth-note,
+.admin-section p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .admin-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -74,6 +81,78 @@
   padding: 4px;
 }
 
+.colour-control {
+  display: grid;
+  grid-template-columns: 96px minmax(140px, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.logo-tools {
+  display: grid;
+  grid-template-columns: max-content minmax(120px, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.logo-tools button,
+.file-option {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 10px 12px;
+  font-weight: 760;
+}
+
+.logo-preview {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.logo-preview img {
+  max-width: 160px;
+  max-height: 56px;
+  object-fit: contain;
+}
+
+.file-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.file-option {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-option:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 122, 106, 0.12);
+}
+
+.file-option img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: #f4f8f8;
+  border-radius: 6px;
+}
+
+.file-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .admin-section pre {
   overflow-x: auto;
   border-radius: 8px;
@@ -101,6 +180,10 @@
 
 @media (max-width: 760px) {
   .admin-form {
+    grid-template-columns: 1fr;
+  }
+
+  .colour-control {
     grid-template-columns: 1fr;
   }
 }

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
@@ -17,7 +18,7 @@ import { applyLocationContext } from "./lib/locations.js";
 import { rankRecommendationsWithOpenAI, researchCompatibilityWithWeb } from "./lib/openai.js";
 import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts, suggestSimilarProducts } from "./lib/recommendations.js";
 import { productMatchesRequestedIntents, requestedIntentNames } from "./lib/product-intents.js";
-import { normalizeWebhookProduct, verifyShopifyWebhook } from "./lib/shopify.js";
+import { normalizeWebhookProduct, shopifyGraphql, verifyShopifyWebhook } from "./lib/shopify.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const port = Number(process.env.PORT || 5174);
@@ -210,7 +211,41 @@ function sendJson(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function safeTimingEqual(left, right) {
+  const leftBuffer = Buffer.from(left || "", "utf8");
+  const rightBuffer = Buffer.from(right || "", "utf8");
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function signedAdminParams(request, url) {
+  const rawQuery = request.headers["x-shopify-admin-query"];
+  return new URLSearchParams(typeof rawQuery === "string" && rawQuery ? rawQuery : url.searchParams);
+}
+
+function verifyShopifyAdminRequest(request, url, requestedShop) {
+  const secret = process.env.SHOPIFY_API_SECRET;
+  if (!secret) return false;
+
+  const params = signedAdminParams(request, url);
+  const hmac = params.get("hmac");
+  if (!hmac) return false;
+
+  const signedShop = normalizeShopDomain(params.get("shop") || "");
+  if (signedShop && requestedShop !== signedShop) return false;
+
+  const message = [...params.entries()]
+    .filter(([key]) => !["hmac", "signature"].includes(key))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join("&");
+  const digest = crypto.createHmac("sha256", secret).update(message).digest("hex");
+  return safeTimingEqual(digest, hmac);
+}
+
 function adminAuthorized(request, url) {
+  const requestedShop = normalizeShopDomain(url.searchParams.get("shop") || request.headers["x-shop-domain"] || "demo");
+  if (verifyShopifyAdminRequest(request, url, requestedShop)) return true;
+
   const token = process.env.ADMIN_TOKEN;
   if (!token && !process.env.RENDER) return true;
   if (!token) return false;
@@ -331,7 +366,7 @@ async function handleApi(request, response) {
 
   if (url.pathname === "/api/admin/shop") {
     if (!adminAuthorized(request, url)) {
-      sendJson(response, 401, { error: "Admin token is required." });
+      sendJson(response, 401, { error: "Admin authentication is required. Open this page from Shopify Admin or enter ADMIN_TOKEN." });
       return;
     }
 
@@ -359,6 +394,63 @@ async function handleApi(request, response) {
       sendJson(response, 200, { shop });
       return;
     }
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/admin/files") {
+    if (!adminAuthorized(request, url)) {
+      sendJson(response, 401, { error: "Admin authentication is required. Open this page from Shopify Admin or enter ADMIN_TOKEN." });
+      return;
+    }
+
+    const shop = await getShop(requestedShop);
+    if (!shop?.accessToken) {
+      sendJson(response, 400, { error: `No Admin API token is saved for ${requestedShop}.` });
+      return;
+    }
+
+    try {
+      const data = await shopifyGraphql(
+        `#graphql
+          query ConciergeLogoFiles {
+            files(first: 24, query: "media_type:IMAGE") {
+              nodes {
+                ... on MediaImage {
+                  id
+                  alt
+                  image {
+                    url
+                    width
+                    height
+                  }
+                }
+                ... on GenericFile {
+                  id
+                  alt
+                  url
+                }
+              }
+            }
+          }
+        `,
+        {},
+        shop
+      );
+      const files = (data.files?.nodes || [])
+        .map((file) => ({
+          id: file.id,
+          alt: file.alt || "",
+          url: file.image?.url || file.url || "",
+          width: file.image?.width || null,
+          height: file.image?.height || null
+        }))
+        .filter((file) => file.url);
+      sendJson(response, 200, { files });
+    } catch (error) {
+      sendJson(response, 400, {
+        error: `${error.message} If this says access denied, add read_files to SHOPIFY_SCOPES and your Shopify app Admin API scopes, then redeploy.`
+      });
+    }
+    return;
   }
 
   if (request.method === "GET" && url.pathname === "/api/debug/search") {

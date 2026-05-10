@@ -20,6 +20,7 @@
       <form class="admin-form" id="admin-form">
         <section class="admin-section">
           <h2>Store</h2>
+          <p class="admin-auth-note" id="admin-auth-note">Use Shopify Admin or your private admin token to manage settings.</p>
           <label>
             Shop domain
             <input id="shop-domain" name="shopDomain" placeholder="your-store.myshopify.com" required />
@@ -45,10 +46,20 @@
             Logo URL
             <input name="logoUrl" placeholder="https://..." />
           </label>
-          <label>
-            Theme colour
-            <input name="themeColor" type="color" value="#007a6a" />
-          </label>
+          <div class="logo-tools">
+            <button type="button" id="load-files">Choose from Shopify files</button>
+            <div class="logo-preview" id="logo-preview" aria-label="Selected logo preview"></div>
+          </div>
+          <div class="colour-control">
+            <label>
+              Theme colour
+              <input name="themeColor" type="color" value="#007a6a" />
+            </label>
+            <label>
+              Hex code
+              <input name="themeColorHex" placeholder="#007a6a" spellcheck="false" />
+            </label>
+          </div>
         </section>
 
         <section class="admin-section">
@@ -73,6 +84,12 @@
             JSON rules
             <textarea name="preferredBrands" rows="7" spellcheck="false" placeholder='{"cable":["UGreen"],"bag":["Port Designs"]}'></textarea>
           </label>
+        </section>
+
+        <section class="admin-section wide">
+          <h2>Shopify Files</h2>
+          <p>Upload logos in Shopify Content &gt; Files, then select one here.</p>
+          <div class="file-picker" id="file-picker" aria-live="polite"></div>
         </section>
 
         <section class="admin-section wide">
