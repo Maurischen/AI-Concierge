@@ -496,6 +496,12 @@ function applyShopConfig(shop = {}) {
   if (shop.themeColor) {
     document.documentElement.style.setProperty("--accent", shop.themeColor);
   }
+  if (widgetConfig.buttonHoverColor) {
+    document.documentElement.style.setProperty("--accent-dark", widgetConfig.buttonHoverColor);
+  }
+  if (widgetConfig.buttonTextColor) {
+    document.documentElement.style.setProperty("--button-text", widgetConfig.buttonTextColor);
+  }
   if (shop.logoUrl) {
     const logoMarkup = `<img class="brand-logo" src="${escapeHtml(shop.logoUrl)}" alt="${escapeHtml(shop.storefrontName || assistantName || "Store logo")}" />`;
     document.querySelector(".store-header .eyebrow").insertAdjacentHTML("beforebegin", logoMarkup);

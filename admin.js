@@ -42,11 +42,23 @@ function normalizeHexColour(value, fallback = "") {
   return `#${hex}`;
 }
 
-function syncThemeColour(value = "#007a6a") {
-  const normalized = normalizeHexColour(value, "#007a6a");
-  form.themeColor.value = normalized;
-  form.themeColorHex.value = normalized;
+function syncColour(pickerName, hexName, value, fallback) {
+  const normalized = normalizeHexColour(value, fallback);
+  form[pickerName].value = normalized;
+  form[hexName].value = normalized;
   return normalized;
+}
+
+function syncThemeColour(value = "#007a6a") {
+  return syncColour("themeColor", "themeColorHex", value, "#007a6a");
+}
+
+function syncButtonHoverColour(value = "#005f53") {
+  return syncColour("buttonHoverColor", "buttonHoverColorHex", value, "#005f53");
+}
+
+function syncButtonTextColour(value = "#ffffff") {
+  return syncColour("buttonTextColor", "buttonTextColorHex", value, "#ffffff");
 }
 
 function defaultWidgetConfig() {
@@ -59,6 +71,8 @@ function defaultWidgetConfig() {
     chatSubheading: "Live guidance",
     welcomeMessage: "Hi, I’m your AI Concierge. What should I call you while we shop?",
     inputPlaceholder: "Tell me what you need, your budget, and how you'll use it...",
+    buttonHoverColor: "#005f53",
+    buttonTextColor: "#ffffff",
     quickPrompts: ["Gaming + design", "Home office", "Accessories"]
   };
 }
@@ -133,6 +147,8 @@ function fillForm(shop) {
   form.assistantName.value = shop?.assistantName || "AI Concierge";
   form.logoUrl.value = shop?.logoUrl || "";
   syncThemeColour(shop?.themeColor || "#007a6a");
+  syncButtonHoverColour(widgetConfig.buttonHoverColor || "#005f53");
+  syncButtonTextColour(widgetConfig.buttonTextColor || "#ffffff");
   form.launcherLabel.value = widgetConfig.launcherLabel;
   form.launcherPosition.value = widgetConfig.launcherPosition;
   form.panelWidth.value = widgetConfig.panelWidth;
@@ -234,7 +250,19 @@ async function saveShop(event) {
     setStatus("Theme colour must be a valid hex code like #007a6a.");
     return;
   }
+  const normalizedButtonHoverColor = normalizeHexColour(form.buttonHoverColorHex.value);
+  if (!normalizedButtonHoverColor) {
+    setStatus("Button hover colour must be a valid hex code like #005f53.");
+    return;
+  }
+  const normalizedButtonTextColor = normalizeHexColour(form.buttonTextColorHex.value);
+  if (!normalizedButtonTextColor) {
+    setStatus("Button text colour must be a valid hex code like #ffffff.");
+    return;
+  }
   syncThemeColour(normalizedThemeColor);
+  syncButtonHoverColour(normalizedButtonHoverColor);
+  syncButtonTextColour(normalizedButtonTextColor);
 
   const response = await fetch(`/api/admin/shop?${shopQuery()}`, {
     method: "POST",
@@ -256,6 +284,8 @@ async function saveShop(event) {
         chatSubheading: form.chatSubheading.value.trim(),
         welcomeMessage: form.welcomeMessage.value.trim(),
         inputPlaceholder: form.inputPlaceholder.value.trim(),
+        buttonHoverColor: normalizedButtonHoverColor,
+        buttonTextColor: normalizedButtonTextColor,
         quickPrompts: [form.quickPrompt1.value, form.quickPrompt2.value, form.quickPrompt3.value].map((prompt) => prompt.trim()).filter(Boolean)
       },
       preferredBrands
@@ -312,9 +342,33 @@ form.themeColorHex.addEventListener("blur", () => {
   const normalized = normalizeHexColour(form.themeColorHex.value);
   if (normalized) syncThemeColour(normalized);
 });
+form.buttonHoverColor.addEventListener("input", () => {
+  form.buttonHoverColorHex.value = form.buttonHoverColor.value.toLowerCase();
+});
+form.buttonHoverColorHex.addEventListener("input", () => {
+  const normalized = normalizeHexColour(form.buttonHoverColorHex.value);
+  if (normalized) form.buttonHoverColor.value = normalized;
+});
+form.buttonHoverColorHex.addEventListener("blur", () => {
+  const normalized = normalizeHexColour(form.buttonHoverColorHex.value);
+  if (normalized) syncButtonHoverColour(normalized);
+});
+form.buttonTextColor.addEventListener("input", () => {
+  form.buttonTextColorHex.value = form.buttonTextColor.value.toLowerCase();
+});
+form.buttonTextColorHex.addEventListener("input", () => {
+  const normalized = normalizeHexColour(form.buttonTextColorHex.value);
+  if (normalized) form.buttonTextColor.value = normalized;
+});
+form.buttonTextColorHex.addEventListener("blur", () => {
+  const normalized = normalizeHexColour(form.buttonTextColorHex.value);
+  if (normalized) syncButtonTextColour(normalized);
+});
 
 renderLogoPreview();
 syncThemeColour(form.themeColor.value);
+syncButtonHoverColour(form.buttonHoverColor.value);
+syncButtonTextColour(form.buttonTextColor.value);
 if (shopInput.value) {
   loadShop().catch((error) => setStatus(error.message));
 }

@@ -375,6 +375,17 @@ function parseJsonObject(raw, fallback = {}) {
   }
 }
 
+function normalizeHexColor(value, fallback) {
+  const raw = String(value || "").trim().toLowerCase();
+  const match = raw.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return fallback;
+  const hex = match[1].toLowerCase();
+  if (hex.length === 3) {
+    return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
+  }
+  return `#${hex}`;
+}
+
 function normalizeWidgetConfig(config = {}) {
   const parsed = parseJsonObject(config, {});
   return {
@@ -389,6 +400,8 @@ function normalizeWidgetConfig(config = {}) {
         "Hi, I’m your AI Concierge. What should I call you while we shop?"
     ).slice(0, 260),
     inputPlaceholder: String(parsed.inputPlaceholder || "Tell me what you need, your budget, and how you'll use it...").slice(0, 160),
+    buttonHoverColor: normalizeHexColor(parsed.buttonHoverColor, "#005f53"),
+    buttonTextColor: normalizeHexColor(parsed.buttonTextColor, "#ffffff"),
     quickPrompts: Array.isArray(parsed.quickPrompts)
       ? parsed.quickPrompts.map((prompt) => String(prompt).trim()).filter(Boolean).slice(0, 3)
       : ["Gaming + design", "Home office", "Accessories"]

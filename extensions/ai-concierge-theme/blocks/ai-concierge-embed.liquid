@@ -31,6 +31,8 @@
   data-label="{{ block.settings.launcher_label | escape }}"
   data-position="{{ block.settings.position }}"
   data-theme-color="{{ block.settings.theme_color }}"
+  data-button-hover-color="{{ block.settings.button_hover_color }}"
+  data-button-text-color="{{ block.settings.button_text_color }}"
   async
 ></script>
 
@@ -72,6 +74,18 @@
       "id": "theme_color",
       "label": "Fallback colour",
       "default": "#007a6a"
+    },
+    {
+      "type": "color",
+      "id": "button_hover_color",
+      "label": "Fallback button hover colour",
+      "default": "#005f53"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Fallback button text colour",
+      "default": "#ffffff"
     }
   ]
 }

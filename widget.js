@@ -5,6 +5,8 @@
   const origin = new URL(currentScript?.src || window.location.href).origin;
   const fallbackPosition = currentScript?.dataset.position || "bottom-right";
   const fallbackColor = currentScript?.dataset.themeColor || "#007a6a";
+  const fallbackHoverColor = currentScript?.dataset.buttonHoverColor || "#005f53";
+  const fallbackTextColor = currentScript?.dataset.buttonTextColor || "#ffffff";
 
   if (document.querySelector("[data-ai-concierge-widget]")) return;
 
@@ -25,6 +27,8 @@
       z-index: 2147483000;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       --ai-concierge-color: ${fallbackColor};
+      --ai-concierge-hover-color: ${fallbackHoverColor};
+      --ai-concierge-text-color: ${fallbackTextColor};
       --ai-concierge-width: 390px;
       --ai-concierge-height: 680px;
     }
@@ -38,11 +42,15 @@
       border: 0;
       border-radius: 999px;
       background: var(--ai-concierge-color);
-      color: white;
+      color: var(--ai-concierge-text-color);
       padding: 13px 16px;
       font-weight: 800;
       box-shadow: 0 14px 34px rgba(0,0,0,.22);
       cursor: pointer;
+    }
+    .ai-concierge-button:hover {
+      background: var(--ai-concierge-hover-color);
+      color: var(--ai-concierge-text-color);
     }
     .ai-concierge-panel {
       display: none;
@@ -104,11 +112,15 @@
       const nextLabel = widgetConfig.launcherLabel || label;
       const position = widgetConfig.launcherPosition || fallbackPosition;
       const color = shopConfig.themeColor || fallbackColor;
+      const hoverColor = widgetConfig.buttonHoverColor || fallbackHoverColor;
+      const textColor = widgetConfig.buttonTextColor || fallbackTextColor;
       button.textContent = nextLabel;
       root.querySelector(".ai-concierge-panel").setAttribute("aria-label", nextLabel);
       root.querySelector("iframe").title = nextLabel;
       root.dataset.aiConciergePosition = position;
       root.style.setProperty("--ai-concierge-color", color);
+      root.style.setProperty("--ai-concierge-hover-color", hoverColor);
+      root.style.setProperty("--ai-concierge-text-color", textColor);
       root.style.setProperty("--ai-concierge-width", `${widgetConfig.panelWidth || 390}px`);
       root.style.setProperty("--ai-concierge-height", `${widgetConfig.panelHeight || 680}px`);
     })
