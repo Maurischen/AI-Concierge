@@ -93,7 +93,8 @@ function extractDeviceModelPhrase(text) {
   const match =
     raw.match(/\b(?:i have|for my|for a|for an|compatible with|work with|works with)\s+(?:an?\s+)?([a-z0-9][a-z0-9 -]{2,60}?)(?:\s+(?:laptop|notebook|desktop|pc|motherboard|board|graphics card|gpu|card)\b|\s+and\b|,|$)/i) ||
     raw.match(/\b([a-z]{2,}\s+[a-z0-9-]*\d{2,}[a-z0-9-]*(?:\s+[a-z0-9-]+)?)\b/i);
-  return match?.[1]?.trim() || "";
+  const phrase = match?.[1]?.trim() || "";
+  return /^(to|with|for|have|has|uses?|using|upgrade|upgrading)\b/i.test(phrase) ? "" : phrase;
 }
 
 function budgetIsOpen(text) {
@@ -131,6 +132,26 @@ function extractIntentSpecs(text) {
 function extractSizes(text) {
   const terms = String(text).toLowerCase();
   return [...terms.matchAll(/\b(\d+(\.\d+)?)\s?(\"|”|'|inch|inches|in|tb|gb|mah|m)\b/g)].map((match) => match[0]);
+}
+
+function extractRamUpgradeDetails(text) {
+  const terms = String(text || "").toLowerCase().replace(/(\d)\s+(\d{3})/g, "$1$2");
+  const targetMatch =
+    terms.match(/\b(?:upgrade|upgrading|increase|go|move)\s+(?:my\s+|pc\s+|desktop\s+|ram\s+|memory\s+)*(?:to|up to)\s*(\d{2,4})\s?gb\b/) ||
+    terms.match(/\b(?:target|want|need)\s*(?:total\s*)?(?:of\s*)?(\d{2,4})\s?gb\b/);
+  const currentMatch =
+    terms.match(/\b(?:currently|current|have|has|using|uses?|installed|already)\D{0,30}?([1-8])\s*x\s*(\d{1,3})\s?gb\b/) ||
+    terms.match(/\b([1-8])\s*x\s*(\d{1,3})\s?gb\b/);
+  const slotMatch =
+    terms.match(/\b([2-8])\s*(?:ram\s*slots?|memory\s*slots?|slots?|dimms?)\b/) ||
+    terms.match(/\b(?:ram\s*slots?|memory\s*slots?|slots?|dimms?)\D{0,8}([2-8])\b/);
+
+  return {
+    ramTargetGb: targetMatch ? Number(targetMatch[1]) : null,
+    ramCurrentModules: currentMatch ? Number(currentMatch[1]) : null,
+    ramCurrentModuleGb: currentMatch ? Number(currentMatch[2]) : null,
+    ramSlotCount: slotMatch ? Number(slotMatch[1]) : null
+  };
 }
 
 function extractBrandsFromText(text) {
@@ -173,6 +194,7 @@ function updateShoppingIntent(previousIntent, message) {
   const budget = extractBudget(latest) || baseIntent?.budget || null;
   const openBudget = budgetIsOpen(latest) || (!budget && baseIntent?.openBudget === true);
   const replacesSpecs = /\b(instead|rather|change|changed|different|other|now|actually)\b/i.test(latest);
+  const ramDetails = extractRamUpgradeDetails(latest);
 
   return {
     productType,
@@ -183,7 +205,11 @@ function updateShoppingIntent(previousIntent, message) {
     modelTokens: modelTokens.length > 0 ? modelTokens : replacesSpecs ? [] : baseIntent?.modelTokens || [],
     deviceModel,
     deviceKind,
-    brands: brands.length > 0 ? brands : baseIntent?.brands || []
+    brands: brands.length > 0 ? brands : baseIntent?.brands || [],
+    ramTargetGb: ramDetails.ramTargetGb || baseIntent?.ramTargetGb || null,
+    ramCurrentModules: ramDetails.ramCurrentModules || baseIntent?.ramCurrentModules || null,
+    ramCurrentModuleGb: ramDetails.ramCurrentModuleGb || baseIntent?.ramCurrentModuleGb || null,
+    ramSlotCount: ramDetails.ramSlotCount || baseIntent?.ramSlotCount || null
   };
 }
 
@@ -207,6 +233,9 @@ function shoppingIntentToText(intent) {
     intent.deviceModel ? `for ${intent.deviceModel}${intent.deviceKind ? ` ${intent.deviceKind}` : ""}` : intent.deviceKind ? `for ${intent.deviceKind}` : null,
     intent.modelTokens?.join(" "),
     intent.specs?.join(" "),
+    intent.ramTargetGb ? `target total ${intent.ramTargetGb}gb ram` : null,
+    intent.ramCurrentModules && intent.ramCurrentModuleGb ? `current ram ${intent.ramCurrentModules}x${intent.ramCurrentModuleGb}gb` : null,
+    intent.ramSlotCount ? `${intent.ramSlotCount} ram slots` : null,
     intent.productType,
     intent.productType === "motherboard" && intent.sizes?.some((size) => /\bgb\b/i.test(size)) ? "memory support" : null,
     intent.brands?.length ? `preferred brands ${intent.brands.join(" or ")}` : null,
