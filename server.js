@@ -15,6 +15,7 @@ import {
 } from "./lib/catalog-store.js";
 import { applyCompatibilityContext } from "./lib/compatibility.js";
 import { applyLocationContext } from "./lib/locations.js";
+import { runShoppingAgent } from "./lib/ai-agent.js";
 import { rankRecommendationsWithOpenAI, researchCompatibilityWithWeb } from "./lib/openai.js";
 import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts, suggestSimilarProducts } from "./lib/recommendations.js";
 import { productMatchesRequestedIntents, requestedIntentNames } from "./lib/product-intents.js";
@@ -649,6 +650,26 @@ async function buildChatResponse({ message, shopDomain, history = [], customerLo
     shopConfig.salesEmail = process.env.SALES_EMAIL;
   }
   const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
+
+  try {
+    const agentResponse = await runShoppingAgent({
+      message,
+      products,
+      shopConfig,
+      history,
+      shoppingIntent: nextShoppingIntent
+    });
+
+    if (agentResponse) {
+      return {
+        status: 200,
+        payload: agentResponse
+      };
+    }
+  } catch (error) {
+    console.warn(`OpenAI shopping agent unavailable: ${error.message}`);
+  }
+
   const intentContext = shoppingIntentToText(nextShoppingIntent);
   const baseUserContext = intentContext || buildUserContext(message, history);
   const compatibilityContext = applyCompatibilityContext(products, baseUserContext);

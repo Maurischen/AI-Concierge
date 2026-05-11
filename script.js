@@ -246,7 +246,12 @@ function renderRecommendations(payload, originalText) {
     ? "For compatibility, I’d verify exact model numbers before checkout."
     : "You can ask me to compare these, narrow by budget, or build a complete setup.";
 
-  const sourceNote = payload.source === "openai" ? "AI-assisted recommendation." : "Local product matcher.";
+  const sourceNote =
+    payload.source === "openai-agent"
+      ? "GPT agent recommendation using live catalog tools."
+      : payload.source === "openai"
+        ? "AI-assisted recommendation."
+        : "Local product matcher.";
   const mailSubject = encodeURIComponent("Compatibility quote request");
   const mailBody = encodeURIComponent(`Hi Sales Team,\n\nPlease help me confirm compatible options for:\n${originalText}\n\nExact model number:\n\nCurrent specs if known:\n\nThank you.`);
   const salesLink = payload.compatibilitySensitive
