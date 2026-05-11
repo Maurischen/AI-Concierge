@@ -87,6 +87,7 @@
 
   document.head.appendChild(style);
   document.body.appendChild(root);
+  document.querySelector("#ai-concierge-test")?.remove();
   root.dataset.aiConciergePosition = fallbackPosition;
 
   const button = root.querySelector(".ai-concierge-button");
@@ -95,7 +96,7 @@
     button.setAttribute("aria-expanded", String(open));
   });
 
-  fetch(`${origin}/api/shop-config?shop=${encodeURIComponent(shop)}`)
+  fetch(`${origin}/public/ai-concierge/config?shop=${encodeURIComponent(shop)}`)
     .then((response) => (response.ok ? response.json() : null))
     .then((payload) => {
       const shopConfig = payload?.shop || {};

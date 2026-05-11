@@ -222,6 +222,26 @@ function sendJson(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function sendPublicJson(response, status, payload) {
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
+  });
+  response.end(JSON.stringify(payload));
+}
+
+function sendPublicOptions(response) {
+  response.writeHead(204, {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "86400"
+  });
+  response.end();
+}
+
 function safeTimingEqual(left, right) {
   const leftBuffer = Buffer.from(left || "", "utf8");
   const rightBuffer = Buffer.from(right || "", "utf8");
@@ -558,8 +578,16 @@ async function serveStatic(request, response) {
       );
     }
 
-    response.writeHead(200, {
+    const headers = {
       "Content-Type": contentTypes[extname(filePath)] || "application/octet-stream"
+    };
+    if (safePath === "widget.js") {
+      headers["Access-Control-Allow-Origin"] = "*";
+      headers["Cache-Control"] = "public, max-age=60";
+    }
+
+    response.writeHead(200, {
+      ...headers
     });
     response.end(body);
   } catch {
@@ -568,9 +596,146 @@ async function serveStatic(request, response) {
   }
 }
 
+async function buildChatResponse({ message, shopDomain, history = [], customerLocation = null, shoppingIntent = null }) {
+  if (!message || typeof message !== "string") {
+    return { status: 400, payload: { error: "Message is required." } };
+  }
+
+  const products = await loadCatalog(shopDomain);
+  const shopConfig = await getShop(shopDomain);
+  if (shopConfig && process.env.SALES_EMAIL) {
+    shopConfig.salesEmail = process.env.SALES_EMAIL;
+  }
+  const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
+  const intentContext = shoppingIntentToText(nextShoppingIntent);
+  const baseUserContext = intentContext || buildUserContext(message, history);
+  const compatibilityContext = applyCompatibilityContext(products, baseUserContext);
+  const webCompatibilityContext =
+    compatibilityContext.referenceProduct && !/could not confirm/i.test(compatibilityContext.note || "")
+      ? null
+      : await researchCompatibilityWithWeb({ message: baseUserContext });
+  const userContext = webCompatibilityContext?.text || compatibilityContext.text;
+  const clarification = needsClarification(userContext);
+  if (clarification.shouldClarify) {
+    return {
+      status: 200,
+      payload: {
+        shop: shopConfig,
+        type: "clarification",
+        message: `I can help with that. ${clarification.questions.join(" ")} Once I have that, I’ll recommend only in-stock products and explain the tradeoffs.`,
+        recommendations: [],
+        shoppingIntent: nextShoppingIntent
+      }
+    };
+  }
+
+  const qualificationQuestions = getQualificationQuestions(userContext);
+  if (qualificationQuestions.length > 0) {
+    return {
+      status: 200,
+      payload: {
+        shop: shopConfig,
+        type: "clarification",
+        message: `${qualificationQuestions.join(" ")} This helps me avoid recommending incompatible parts.`,
+        recommendations: [],
+        shoppingIntent: nextShoppingIntent
+      }
+    };
+  }
+
+  const candidateRecommendations = recommendProducts(products, userContext, {
+    preferredBrands: shopConfig?.preferredBrands || {}
+  });
+  let recommendations = candidateRecommendations.slice(0, 3);
+  let source = "local";
+
+  try {
+    const aiRanking = await rankRecommendationsWithOpenAI({
+      message: userContext,
+      products: candidateRecommendations.slice(0, 12)
+    });
+
+    if (aiRanking?.recommendations?.length > 0) {
+      const aiReasons = new Map(
+        aiRanking.recommendations.map((item) => [item.variantId, Array.isArray(item.reasons) ? item.reasons : []])
+      );
+      recommendations = aiRanking.recommendations
+        .map((item) => candidateRecommendations.find((product) => product.variantId === item.variantId))
+        .filter(Boolean)
+        .filter((product) => isRelevantProductForRequest(product, userContext))
+        .slice(0, 3)
+        .map((product) => ({
+          ...product,
+          reasons: aiReasons.get(product.variantId)?.length > 0 ? aiReasons.get(product.variantId).slice(0, 3) : product.reasons
+        }));
+      source = "openai";
+    }
+  } catch (error) {
+    source = "local";
+    console.warn(`OpenAI ranking unavailable: ${error.message}`);
+  }
+
+  const locationResult = applyLocationContext(recommendations, candidateRecommendations, products, userContext, customerLocation);
+  recommendations = locationResult.recommendations;
+  if (isCompatibilityUpgradeIntent(nextShoppingIntent, message) && recommendations.length > 1) {
+    recommendations = recommendations.slice(0, 1);
+  }
+  const suggestions = recommendations.length === 0 ? suggestSimilarProducts(products, userContext, 3) : [];
+
+  const recommendationMessage =
+    recommendations.length > 0
+      ? [
+          "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change.",
+          webCompatibilityContext?.note || compatibilityContext.note,
+          isCompatibilityUpgradeIntent(nextShoppingIntent, message)
+            ? "Because you gave a specific model or product code, I’m only showing one safest match. If you’re unsure, send your exact model number to the sales team for a quote before buying."
+            : null,
+          locationResult.note
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : suggestions.length > 0
+        ? "I could not find an exact in-stock match for that request. These are the closest similar products I found, so please check the model and colour carefully."
+        : "I could not find a clear in-stock match for that request. Try checking the model number, colour, or product name.";
+
+  return {
+    status: 200,
+    payload: {
+      shop: shopConfig,
+      type: "recommendations",
+      source,
+      message: recommendationMessage,
+      recommendations,
+      suggestions,
+      compatibilitySensitive: isCompatibilityUpgradeIntent(nextShoppingIntent, message),
+      webSources: webCompatibilityContext?.sources || [],
+      shoppingIntent: nextShoppingIntent
+    }
+  };
+}
+
 async function handleApi(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const requestedShop = normalizeShopDomain(url.searchParams.get("shop") || request.headers["x-shop-domain"] || "demo");
+
+  if (request.method === "OPTIONS" && url.pathname.startsWith("/public/ai-concierge/")) {
+    sendPublicOptions(response);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/public/ai-concierge/config") {
+    const shop = await getShop(requestedShop);
+    sendPublicJson(response, 200, { shop: publicShopConfig(shop) });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/public/ai-concierge/chat") {
+    const { message, shop, history = [], customerLocation = null, shoppingIntent = null } = await readJson(request);
+    const shopDomain = normalizeShopDomain(shop || requestedShop);
+    const result = await buildChatResponse({ message, shopDomain, history, customerLocation, shoppingIntent });
+    sendPublicJson(response, result.status || 200, result.payload);
+    return;
+  }
 
   if (request.method === "GET" && url.pathname === "/api/shops") {
     sendJson(response, 200, { shops: await listShops() });
@@ -712,115 +877,8 @@ async function handleApi(request, response) {
   if (request.method === "POST" && url.pathname === "/api/chat") {
     const { message, shop, history = [], customerLocation = null, shoppingIntent = null } = await readJson(request);
     const shopDomain = normalizeShopDomain(shop || requestedShop);
-    if (!message || typeof message !== "string") {
-      sendJson(response, 400, { error: "Message is required." });
-      return;
-    }
-
-    const products = await loadCatalog(shopDomain);
-    const shopConfig = await getShop(shopDomain);
-    if (shopConfig && process.env.SALES_EMAIL) {
-      shopConfig.salesEmail = process.env.SALES_EMAIL;
-    }
-    const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
-    const intentContext = shoppingIntentToText(nextShoppingIntent);
-    const baseUserContext = intentContext || buildUserContext(message, history);
-    const compatibilityContext = applyCompatibilityContext(products, baseUserContext);
-    const webCompatibilityContext =
-      compatibilityContext.referenceProduct && !/could not confirm/i.test(compatibilityContext.note || "")
-        ? null
-        : await researchCompatibilityWithWeb({ message: baseUserContext });
-    const userContext = webCompatibilityContext?.text || compatibilityContext.text;
-    const clarification = needsClarification(userContext);
-    if (clarification.shouldClarify) {
-      sendJson(response, 200, {
-        shop: shopConfig,
-        type: "clarification",
-        message: `I can help with that. ${clarification.questions.join(" ")} Once I have that, I’ll recommend only in-stock products and explain the tradeoffs.`,
-        recommendations: [],
-        shoppingIntent: nextShoppingIntent
-      });
-      return;
-    }
-
-    const qualificationQuestions = getQualificationQuestions(userContext);
-    if (qualificationQuestions.length > 0) {
-      sendJson(response, 200, {
-        shop: shopConfig,
-        type: "clarification",
-        message: `${qualificationQuestions.join(" ")} This helps me avoid recommending incompatible parts.`,
-        recommendations: [],
-        shoppingIntent: nextShoppingIntent
-      });
-      return;
-    }
-
-    const candidateRecommendations = recommendProducts(products, userContext, {
-      preferredBrands: shopConfig?.preferredBrands || {}
-    });
-    let recommendations = candidateRecommendations.slice(0, 3);
-    let source = "local";
-
-    try {
-      const aiRanking = await rankRecommendationsWithOpenAI({
-        message: userContext,
-        products: candidateRecommendations.slice(0, 12)
-      });
-
-      if (aiRanking?.recommendations?.length > 0) {
-        const aiReasons = new Map(
-          aiRanking.recommendations.map((item) => [item.variantId, Array.isArray(item.reasons) ? item.reasons : []])
-        );
-        recommendations = aiRanking.recommendations
-          .map((item) => candidateRecommendations.find((product) => product.variantId === item.variantId))
-          .filter(Boolean)
-          .filter((product) => isRelevantProductForRequest(product, userContext))
-          .slice(0, 3)
-          .map((product) => ({
-            ...product,
-            reasons: aiReasons.get(product.variantId)?.length > 0 ? aiReasons.get(product.variantId).slice(0, 3) : product.reasons
-          }));
-        source = "openai";
-      }
-    } catch (error) {
-      source = "local";
-      console.warn(`OpenAI ranking unavailable: ${error.message}`);
-    }
-
-    const locationResult = applyLocationContext(recommendations, candidateRecommendations, products, userContext, customerLocation);
-    recommendations = locationResult.recommendations;
-    if (isCompatibilityUpgradeIntent(nextShoppingIntent, message) && recommendations.length > 1) {
-      recommendations = recommendations.slice(0, 1);
-    }
-    const suggestions = recommendations.length === 0 ? suggestSimilarProducts(products, userContext, 3) : [];
-
-    const recommendationMessage =
-      recommendations.length > 0
-        ? [
-            "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change.",
-            webCompatibilityContext?.note || compatibilityContext.note,
-            isCompatibilityUpgradeIntent(nextShoppingIntent, message)
-              ? "Because you gave a specific model or product code, I’m only showing one safest match. If you’re unsure, send your exact model number to the sales team for a quote before buying."
-              : null,
-            locationResult.note
-          ]
-            .filter(Boolean)
-            .join(" ")
-        : suggestions.length > 0
-          ? "I could not find an exact in-stock match for that request. These are the closest similar products I found, so please check the model and colour carefully."
-          : "I could not find a clear in-stock match for that request. Try checking the model number, colour, or product name.";
-
-    sendJson(response, 200, {
-      shop: shopConfig,
-      type: "recommendations",
-      source,
-      message: recommendationMessage,
-      recommendations,
-      suggestions,
-      compatibilitySensitive: isCompatibilityUpgradeIntent(nextShoppingIntent, message),
-      webSources: webCompatibilityContext?.sources || [],
-      shoppingIntent: nextShoppingIntent
-    });
+    const result = await buildChatResponse({ message, shopDomain, history, customerLocation, shoppingIntent });
+    sendJson(response, result.status || 200, result.payload);
     return;
   }
 
@@ -935,7 +993,7 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (request.url.startsWith("/api/")) {
+    if (request.url.startsWith("/api/") || request.url.startsWith("/public/")) {
       await handleApi(request, response);
       return;
     }

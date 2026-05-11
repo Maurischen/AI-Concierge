@@ -110,6 +110,10 @@ function adminHeaders() {
   };
   if (signedAdminQuery) headers["X-Shopify-Admin-Query"] = signedAdminQuery;
   if (adminSession?.token) headers["X-AI-Concierge-Admin-Token"] = adminSession.token;
+  console.info("[AI Concierge Admin] auth headers ready", {
+    hasSignedShopifyQuery: Boolean(signedAdminQuery),
+    hasInjectedAdminToken: Boolean(adminSession?.token)
+  });
   return headers;
 }
 
@@ -186,14 +190,24 @@ function renderFiles(files) {
 }
 
 async function loadShopifyFiles() {
+  console.info("[AI Concierge Admin] Choose from Shopify files clicked", {
+    shop: shopInput.value.trim(),
+    hasInjectedAdminToken: Boolean(adminSession?.token)
+  });
+
   if (!shopInput.value.trim()) {
     setStatus("Enter a shop domain first.");
     return;
   }
 
   setStatus("Loading Shopify files...");
+  console.info("[AI Concierge Admin] Requesting Shopify files through Admin API browser fallback");
   const response = await fetch(`/api/admin/files?${shopQuery()}`, {
     headers: adminHeaders()
+  });
+  console.info("[AI Concierge Admin] Shopify files response", {
+    ok: response.ok,
+    status: response.status
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload.error || "Could not load Shopify files.");
@@ -262,7 +276,14 @@ brandRules.addEventListener("click", (event) => {
   button.closest(".brand-rule").remove();
   if (!brandRules.querySelector(".brand-rule")) addBrandRuleRow("", []);
 });
-loadFilesButton.addEventListener("click", () => loadShopifyFiles().catch((error) => setStatus(error.message)));
+loadFilesButton.addEventListener("click", (event) => {
+  event.preventDefault();
+  console.info("[AI Concierge Admin] File selector button handler fired");
+  loadShopifyFiles().catch((error) => {
+    console.error("[AI Concierge Admin] Shopify file browser failed", error);
+    setStatus(error.message);
+  });
+});
 filePicker.addEventListener("click", (event) => {
   const option = event.target.closest(".file-option");
   if (!option) return;

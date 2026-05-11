@@ -1,0 +1,21 @@
+# Shopify CLI app config for AI Concierge.
+# Replace client_id with the API key from your Shopify Partner app before deploying.
+
+name = "AI Concierge"
+client_id = "593fe1c038598a074c3c2d89f42385a0"
+application_url = "https://ai-concierge-qkhn.onrender.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = false
+
+[auth]
+redirect_urls = [
+  "https://ai-concierge-qkhn.onrender.com/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-01"
+
+[pos]
+embedded = false

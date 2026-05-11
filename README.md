@@ -25,7 +25,7 @@ Then open `http://127.0.0.1:5174/`.
 Upload this whole project folder:
 
 ```text
-C:\Users\mauri\Documents\Codex\2026-05-08\i-would-like-to-build-an
+C:\Users\mauri\MWC_Apps\AI Concierge
 ```
 
 Commit everything except files ignored by `.gitignore`, especially `.env`, `node_modules`, and `data/catalog-cache.json`.
@@ -101,6 +101,45 @@ npm run register:webhooks
 ```
 
 Each storefront should load the assistant through the Shopify theme app embed in `extensions/ai-concierge-theme`. Deploy the extension with Shopify CLI, then enable **AI Concierge** in **Online Store > Themes > Customize > App embeds**. No custom liquid or pasted script is needed.
+
+## Shopify CLI Setup
+
+The repo includes a Shopify CLI config at `shopify.app.toml` and the theme app extension at `extensions/ai-concierge-theme`.
+
+Before deploying the extension, edit `shopify.app.toml`:
+
+```toml
+client_id = "your Shopify Partner app API key"
+application_url = "https://your-render-url.onrender.com"
+
+[auth]
+redirect_urls = [
+  "https://your-render-url.onrender.com/auth/callback"
+]
+```
+
+The same values must be set in Render:
+
+```text
+SHOPIFY_API_KEY=your Shopify Partner app API key
+SHOPIFY_API_SECRET=your Shopify Partner app API secret
+SHOPIFY_APP_URL=https://your-render-url.onrender.com
+SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files
+```
+
+Then deploy the app extension:
+
+```bash
+npm run shopify:deploy
+```
+
+After Shopify CLI finishes, manually enable the embed in Shopify Admin:
+
+```text
+Online Store > Themes > Customize > App embeds > AI Concierge
+```
+
+The embed first shows a visible `AI Concierge Loaded` marker. If that marker appears, the theme extension is active. Once `widget.js` loads, the marker is removed and the floating chat launcher appears.
 
 ## Admin UI
 

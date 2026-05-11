@@ -9,6 +9,9 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
+    "shopify:link": "shopify app config link",
+    "shopify:dev": "shopify app dev",
+    "shopify:deploy": "shopify app deploy",
     "sync:shopify": "node scripts/sync-shopify-catalog.js",
     "register:shop": "node scripts/register-shop.js",
     "register:webhooks": "node scripts/register-webhooks.js",
