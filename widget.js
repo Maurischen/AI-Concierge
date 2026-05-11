@@ -99,9 +99,64 @@
   root.dataset.aiConciergePosition = fallbackPosition;
 
   const button = root.querySelector(".ai-concierge-button");
+  const iframe = root.querySelector("iframe");
   button.addEventListener("click", () => {
     const open = root.classList.toggle("open");
     button.setAttribute("aria-expanded", String(open));
+  });
+
+  window.addEventListener("message", async (event) => {
+    if (event.source !== iframe.contentWindow) return;
+    const data = event.data || {};
+    if (data.type !== "ai-concierge:add-cart") return;
+
+    try {
+      const addResponse = await fetch("/cart/add.js", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          id: Number(data.variantId),
+          quantity: Number(data.quantity || 1)
+        })
+      });
+
+      if (!addResponse.ok) {
+        const error = await addResponse.json().catch(() => ({}));
+        throw new Error(error.description || error.message || "Shopify could not add this item to cart.");
+      }
+
+      const cartResponse = await fetch("/cart.js", {
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json"
+        }
+      });
+      if (!cartResponse.ok) throw new Error("Could not read the Shopify cart.");
+
+      iframe.contentWindow.postMessage(
+        {
+          type: "ai-concierge:cart-result",
+          requestId: data.requestId,
+          ok: true,
+          cart: await cartResponse.json()
+        },
+        event.origin
+      );
+    } catch (error) {
+      iframe.contentWindow.postMessage(
+        {
+          type: "ai-concierge:cart-result",
+          requestId: data.requestId,
+          ok: false,
+          error: error.message
+        },
+        event.origin
+      );
+    }
   });
 
   fetch(`${origin}/public/ai-concierge/config?shop=${encodeURIComponent(shop)}`)

@@ -968,6 +968,8 @@ async function handleApi(request, response) {
         mode: cartAddUrl ? "online-store-cart-add" : "demo-cart",
         cartAddUrl,
         numericVariantId,
+        cartJsonUrl: isRealShopDomain(shopDomain) ? `https://${shopDomain}/cart.js` : null,
+        cartAjaxAddUrl: isRealShopDomain(shopDomain) ? `https://${shopDomain}/cart/add.js` : null,
         mutation: "cartLinesAdd",
         merchandiseId: variantId,
         quantity

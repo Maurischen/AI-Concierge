@@ -92,6 +92,118 @@ function money(value) {
   }).format(value);
 }
 
+function isRealShopDomain(shopDomain) {
+  return /\.myshopify\.com$/i.test(shopDomain) || /^[a-z0-9][a-z0-9-]*\.[a-z]{2,}$/i.test(shopDomain);
+}
+
+function numericShopifyId(gid) {
+  return String(gid || "").split("/").pop();
+}
+
+function productNumericVariantId(product, fallbackVariantId) {
+  const selectedVariant = (product?.variants || []).find((variant) => variant.id === fallbackVariantId || variant.numericId === fallbackVariantId);
+  return selectedVariant?.numericId || selectedVariant?.legacyResourceId || product?.numericVariantId || numericShopifyId(fallbackVariantId);
+}
+
+function updateCartDisplay(cart) {
+  if (!cart) return;
+  const itemCount = Number(cart.item_count ?? cart.count ?? 0);
+  state.cartCount = itemCount;
+  cartCount.textContent = String(itemCount);
+}
+
+function requestStorefrontCartAdd(numericVariantId, quantity = 1) {
+  if (window.parent === window) return null;
+
+  return new Promise((resolve, reject) => {
+    const requestId = `cart-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener("message", handleMessage);
+      reject(new Error("Storefront cart did not respond."));
+    }, 8000);
+
+    function handleMessage(event) {
+      const data = event.data || {};
+      if (data.type !== "ai-concierge:cart-result" || data.requestId !== requestId) return;
+      window.clearTimeout(timeout);
+      window.removeEventListener("message", handleMessage);
+
+      if (!data.ok) {
+        reject(new Error(data.error || "Shopify could not add this item to cart."));
+        return;
+      }
+
+      resolve(data.cart);
+    }
+
+    window.addEventListener("message", handleMessage);
+    window.parent.postMessage(
+      {
+        type: "ai-concierge:add-cart",
+        requestId,
+        variantId: Number(numericVariantId),
+        quantity
+      },
+      "*"
+    );
+  });
+}
+
+function cartSummaryMarkup(cart, addedProduct = null) {
+  const items = Array.isArray(cart?.items) ? cart.items : [];
+  const itemCount = Number(cart?.item_count ?? cart?.count ?? items.reduce((total, item) => total + Number(item.quantity || 0), 0));
+  const subtotal = typeof cart?.total_price === "number" ? money(cart.total_price / 100) : "";
+  const rows = items
+    .slice(0, 4)
+    .map((item) => `<li>${escapeHtml(item.quantity)} x ${escapeHtml(item.product_title || item.title || item.name || "Item")}</li>`)
+    .join("");
+  const more = items.length > 4 ? `<li>+ ${items.length - 4} more item${items.length - 4 === 1 ? "" : "s"}</li>` : "";
+  const addedLine = addedProduct ? `<p><strong>${escapeHtml(addedProduct.name)}</strong> was added to your cart.</p>` : "";
+  const cartLink = isRealShopDomain(state.shopDomain)
+    ? `<p><a href="https://${escapeHtml(state.shopDomain)}/cart" target="_top" rel="noopener noreferrer">View cart when you're ready</a></p>`
+    : "";
+  return `${addedLine}<p>Your cart now has <strong>${itemCount}</strong> item${itemCount === 1 ? "" : "s"}${subtotal ? ` totalling <strong>${escapeHtml(subtotal)}</strong>` : ""}.</p>${rows ? `<ul class="cart-summary">${rows}${more}</ul>` : ""}${cartLink}<p>You can keep shopping right here in chat.</p>`;
+}
+
+async function fetchShopifyCart() {
+  if (!isRealShopDomain(state.shopDomain)) return null;
+  const response = await fetch(`https://${state.shopDomain}/cart.js`, {
+    credentials: "include"
+  });
+  if (!response.ok) throw new Error("Could not read the Shopify cart.");
+  return response.json();
+}
+
+async function addToShopifyAjaxCart(product, variantId, quantity = 1) {
+  if (!isRealShopDomain(state.shopDomain)) return null;
+  const numericVariantId = productNumericVariantId(product, variantId);
+  if (!/^\d+$/.test(String(numericVariantId))) return null;
+
+  if (new URLSearchParams(window.location.search).get("embed") === "widget") {
+    return requestStorefrontCartAdd(numericVariantId, quantity);
+  }
+
+  const response = await fetch(`https://${state.shopDomain}/cart/add.js`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      id: Number(numericVariantId),
+      quantity
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.description || error.message || "Shopify could not add this item to cart.");
+  }
+
+  return fetchShopifyCart();
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -439,10 +551,21 @@ async function addToCart(variantId) {
     });
 
     messages.querySelector(".typing")?.closest(".message")?.remove();
-    state.cartCount = payload.count;
-    cartCount.textContent = String(state.cartCount);
+    const product = payload.product;
+    const ajaxCart = await addToShopifyAjaxCart(product, variantId, 1).catch((error) => {
+      console.warn(`Shopify AJAX cart unavailable: ${error.message}`);
+      return null;
+    });
 
-    if (payload.shopifyReady?.cartAddUrl) {
+    if (ajaxCart) {
+      updateCartDisplay(ajaxCart);
+      addMessage("ai", cartSummaryMarkup(ajaxCart, product));
+      return;
+    }
+
+    updateCartDisplay(payload);
+
+    if (payload.shopifyReady?.cartAddUrl && !new URLSearchParams(window.location.search).get("embed")) {
       addMessage(
         "ai",
         `<p><strong>${escapeHtml(payload.product.name)}</strong> is ready for your Shopify cart. Opening the cart now...</p><p><a href="${escapeHtml(payload.shopifyReady.cartAddUrl)}" target="_top" rel="noopener noreferrer">Open Shopify cart</a></p>`
@@ -453,9 +576,13 @@ async function addToCart(variantId) {
       return;
     }
 
+    const fallbackCart = {
+      count: payload.count,
+      items: [{ quantity: 1, product_title: payload.product.name }]
+    };
     addMessage(
       "ai",
-      `<p><strong>${escapeHtml(payload.product.name)}</strong> has been added to the demo cart.</p><p>Shopify-ready action: <code>${escapeHtml(payload.shopifyReady.mutation)}</code> with variant ID <code>${escapeHtml(payload.shopifyReady.merchandiseId)}</code>.</p>`
+      cartSummaryMarkup(fallbackCart, payload.product)
     );
   } catch (error) {
     messages.querySelector(".typing")?.closest(".message")?.remove();
@@ -531,6 +658,9 @@ async function init() {
   applyShopConfig(payload.shop || {});
   state.products = payload.products;
   renderCatalog();
+  fetchShopifyCart()
+    .then(updateCartDisplay)
+    .catch(() => {});
   addMessage(
     "ai",
     state.awaitingName
