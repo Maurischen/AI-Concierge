@@ -9,11 +9,12 @@ const brandRules = document.querySelector("#brand-rules");
 const addBrandRuleButton = document.querySelector("#add-brand-rule");
 
 const params = new URLSearchParams(window.location.search);
+const adminSession = window.AI_CONCIERGE_ADMIN_SESSION || null;
 const signedAdminQuery = window.location.search.replace(/^\?/, "");
 const hasShopifyAdminAuth = params.has("hmac") && params.has("shop");
 
-shopInput.value = params.get("shop") || localStorage.getItem("aiConciergeAdminShop") || "";
-if (hasShopifyAdminAuth) {
+shopInput.value = params.get("shop") || adminSession?.shop || localStorage.getItem("aiConciergeAdminShop") || "";
+if (hasShopifyAdminAuth || adminSession?.authenticated || adminSession?.token) {
   authNote.textContent = "Authenticated through Shopify Admin.";
 }
 
@@ -108,6 +109,7 @@ function adminHeaders() {
     "Content-Type": "application/json"
   };
   if (signedAdminQuery) headers["X-Shopify-Admin-Query"] = signedAdminQuery;
+  if (adminSession?.token) headers["X-AI-Concierge-Admin-Token"] = adminSession.token;
   return headers;
 }
 

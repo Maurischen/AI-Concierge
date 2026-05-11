@@ -281,6 +281,11 @@ function signAdminSession(shop, expiresAt) {
   return crypto.createHmac("sha256", process.env.SHOPIFY_API_SECRET || "").update(`${shop}|${expiresAt}`).digest("hex");
 }
 
+function createAdminSessionToken(shop, expiresAt = Date.now() + 24 * 60 * 60 * 1000) {
+  const signature = signAdminSession(shop, expiresAt);
+  return Buffer.from(`${shop}|${expiresAt}|${signature}`).toString("base64url");
+}
+
 function setAdminSessionCookie(response, shop) {
   const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
   const signature = signAdminSession(shop, expiresAt);
@@ -302,9 +307,30 @@ function verifyAdminSessionCookie(request, requestedShop) {
   return safeTimingEqual(signAdminSession(shop, expiresAt), signature);
 }
 
+function verifyAdminHeaderToken(request, requestedShop) {
+  if (!process.env.SHOPIFY_API_SECRET) return false;
+  const token = String(request.headers["x-ai-concierge-admin-token"] || "");
+  if (!token) return false;
+
+  let decoded = "";
+  try {
+    decoded = Buffer.from(token, "base64url").toString("utf8");
+  } catch {
+    return false;
+  }
+
+  const [shop, expiresAtRaw, signature] = decoded.split("|");
+  const expiresAt = Number(expiresAtRaw);
+  if (!shop || !expiresAt || !signature) return false;
+  if (Date.now() > expiresAt) return false;
+  if (normalizeShopDomain(shop) !== requestedShop) return false;
+  return safeTimingEqual(signAdminSession(shop, expiresAt), signature);
+}
+
 function adminAuthorized(request, url) {
   const requestedShop = normalizeShopDomain(url.searchParams.get("shop") || request.headers["x-shop-domain"] || "demo");
   if (verifyShopifyAdminRequest(request, url, requestedShop)) return true;
+  if (verifyAdminHeaderToken(request, requestedShop)) return true;
   if (verifyAdminSessionCookie(request, requestedShop)) return true;
 
   return !process.env.RENDER;
@@ -501,20 +527,37 @@ async function finishOAuth(request, response, url) {
 async function serveStatic(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const isShopifyAdminEmbed = url.pathname === "/" && (url.searchParams.has("host") || url.searchParams.get("embedded") === "1");
-  if (isShopifyAdminEmbed) {
-    const requestedShop = normalizeShopDomain(url.searchParams.get("shop"));
-    const shop = requestedShop ? await getShop(requestedShop) : null;
-    if (requestedShop && !shop?.accessToken) {
-      redirect(response, `/auth?shop=${encodeURIComponent(requestedShop)}`);
-      return;
-    }
-  }
   const requestedPath = isShopifyAdminEmbed ? "admin.html" : url.pathname === "/" ? "index.html" : url.pathname.replace(/^\/+/, "");
   const safePath = normalize(requestedPath).replace(/^(\.\.[/\\])+/, "");
   const filePath = join(root, safePath);
 
   try {
-    const body = await readFile(filePath);
+    const isAdminPage = safePath === "admin.html";
+    const requestedShop = normalizeShopDomain(url.searchParams.get("shop") || "");
+    const shop = requestedShop ? await getShop(requestedShop) : null;
+
+    if (isAdminPage && requestedShop && !shop?.accessToken && process.env.RENDER) {
+      redirect(response, `/auth?shop=${encodeURIComponent(requestedShop)}`);
+      return;
+    }
+
+    let body = await readFile(filePath);
+    if (isAdminPage) {
+      const pageSession =
+        requestedShop && (shop?.accessToken || !process.env.RENDER)
+          ? {
+              shop: requestedShop,
+              token: createAdminSessionToken(requestedShop),
+              authenticated: Boolean(shop?.accessToken)
+            }
+          : null;
+
+      body = String(body).replace(
+        "</head>",
+        `<script>window.AI_CONCIERGE_ADMIN_SESSION=${JSON.stringify(pageSession)};</script></head>`
+      );
+    }
+
     response.writeHead(200, {
       "Content-Type": contentTypes[extname(filePath)] || "application/octet-stream"
     });
