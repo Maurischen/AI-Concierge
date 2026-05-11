@@ -8,11 +8,15 @@ embedded = true
 
 [build]
 automatically_update_urls_on_dev = false
+include_config_on_deploy = true
 
 [auth]
 redirect_urls = [
   "https://ai-concierge-qkhn.onrender.com/auth/callback"
 ]
+
+[access_scopes]
+scopes = "read_products,read_inventory,read_locations,read_files"
 
 [webhooks]
 api_version = "2026-01"

@@ -116,6 +116,12 @@ application_url = "https://your-render-url.onrender.com"
 redirect_urls = [
   "https://your-render-url.onrender.com/auth/callback"
 ]
+
+[access_scopes]
+scopes = "read_products,read_inventory,read_locations,read_files"
+
+[build]
+include_config_on_deploy = true
 ```
 
 The same values must be set in Render:
