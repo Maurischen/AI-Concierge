@@ -188,9 +188,15 @@ function updateShoppingIntent(previousIntent, message) {
 }
 
 function isCompatibilityUpgradeIntent(intent, text) {
+  const terms = String(text || "").toLowerCase();
+  const modelTokens = (intent?.modelTokens || []).filter((token) => /[a-z]+\d|\d+[a-z]/i.test(token));
+  const deviceModel = String(intent?.deviceModel || "");
+  const hasDeviceModelCode = /\b[a-z][a-z0-9-]*\s+[a-z0-9-]*\d{2,}[a-z0-9-]*(?:\s+[a-z0-9-]+)?\b/i.test(deviceModel);
+  const hasGpuModelCode = /\b(rtx|gtx|rx)\s?-?\s?\d{3,4}\b/i.test(terms);
+
   return Boolean(
-    intent?.deviceModel ||
-      /\b(upgrade|compatible|work with|works with|for my|i have|existing|exact model)\b/i.test(text)
+    /\b(compatible|work with|works with|for my|i have|existing|exact model|upgrade)\b/i.test(terms) &&
+      (modelTokens.length > 0 || hasDeviceModelCode || hasGpuModelCode)
   );
 }
 
@@ -751,7 +757,7 @@ async function handleApi(request, response) {
             "Here are the best matches from current stock. I’d lead with the first option unless your budget or compatibility needs change.",
             webCompatibilityContext?.note || compatibilityContext.note,
             isCompatibilityUpgradeIntent(nextShoppingIntent, message)
-              ? "Because this is a compatibility-sensitive upgrade, I’m only showing one safest match. If you’re unsure, send your exact model number to the sales team for a quote before buying."
+              ? "Because you gave a specific model or product code, I’m only showing one safest match. If you’re unsure, send your exact model number to the sales team for a quote before buying."
               : null,
             locationResult.note
           ]
