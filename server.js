@@ -328,6 +328,37 @@ function shoppingIntentToText(intent) {
     .join(" ");
 }
 
+function budgetFromContext(text, intent = {}) {
+  const value = extractBudget(text) || intent?.budget;
+  return value ? Number(value) : null;
+}
+
+function responseRespectsOriginalRequest(payload, text, intent = {}) {
+  if (!payload || payload.type !== "recommendations") return true;
+  const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations : [];
+  if (recommendations.length === 0) return false;
+  const budget = budgetFromContext(text, intent);
+  return recommendations.every((product) => {
+    if (budget && Number(product.price || 0) > budget) return false;
+    return isRelevantProductForRequest(product, text);
+  });
+}
+
+function filterResponseToOriginalRequest(payload, text, intent = {}) {
+  if (!payload || payload.type !== "recommendations") return payload;
+  const budget = budgetFromContext(text, intent);
+  const recommendations = (payload.recommendations || []).filter((product) => {
+    if (budget && Number(product.price || 0) > budget) return false;
+    return isRelevantProductForRequest(product, text);
+  });
+
+  if (recommendations.length === 0) return null;
+  return {
+    ...payload,
+    recommendations
+  };
+}
+
 function sendJson(response, status, payload) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(payload));
@@ -762,6 +793,7 @@ async function buildChatResponse({ message, shopDomain, history = [], customerLo
     shopConfig.salesEmail = process.env.SALES_EMAIL;
   }
   const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
+  const agentValidationContext = shoppingIntentToText(nextShoppingIntent) || buildUserContext(message, history);
   const exactCodeMatches = shouldUseExactProductLookup(message, nextShoppingIntent) ? findExactCodeMatches(products, message) : [];
   if (exactCodeMatches.length > 0) {
     return {
@@ -789,9 +821,27 @@ async function buildChatResponse({ message, shopDomain, history = [], customerLo
     });
 
     if (agentResponse) {
+      const validatedAgentResponse = filterResponseToOriginalRequest(agentResponse, agentValidationContext, nextShoppingIntent);
+      if (!responseRespectsOriginalRequest(agentResponse, agentValidationContext, nextShoppingIntent)) {
+        console.warn("OpenAI shopping agent recommendations did not match original request; falling back to local matcher.");
+      } else if (validatedAgentResponse) {
+        return {
+          status: 200,
+          payload: validatedAgentResponse
+        };
+      }
+      if (agentResponse.type !== "recommendations") {
+        return {
+          status: 200,
+          payload: agentResponse
+        };
+      }
+      if (!validatedAgentResponse) {
+        throw new Error("Agent recommendations failed validation.");
+      }
       return {
         status: 200,
-        payload: agentResponse
+        payload: validatedAgentResponse
       };
     }
   } catch (error) {
