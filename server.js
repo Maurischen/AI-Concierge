@@ -145,6 +145,21 @@ function findExactCodeMatches(products, text) {
     }));
 }
 
+function shouldUseExactProductLookup(text, intent = {}) {
+  const terms = String(text || "").toLowerCase();
+  const productType = String(intent?.productType || "");
+  const looksLikeOwnedDeviceContext =
+    /\b(i have|i own|my current|currently have|currently using|running|it has|it uses|with)\b/i.test(terms) &&
+    /\b(upgrade|upgrading|compatible|compatibility|work with|works with|for my|desktop|pc|computer|laptop|notebook|motherboard|optiplex|prodesk|thinkcentre|thinkpad|latitude|inspiron|pavilion|elitebook|vivobook|pulse)\b/i.test(terms);
+  const requestedUpgradePart = ["ram", "ssd", "hdd", "cpu", "graphics card", "psu"].includes(productType);
+
+  if (looksLikeOwnedDeviceContext && (requestedUpgradePart || /\b(ram|memory|ssd|hdd|hard drive|cpu|processor|graphics card|gpu|power supply|psu)\b/i.test(terms))) {
+    return false;
+  }
+
+  return true;
+}
+
 function extractDeviceModelPhrase(text) {
   const raw = normalizeIntentText(text);
   const match =
@@ -737,7 +752,7 @@ async function buildChatResponse({ message, shopDomain, history = [], customerLo
     shopConfig.salesEmail = process.env.SALES_EMAIL;
   }
   const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
-  const exactCodeMatches = findExactCodeMatches(products, message);
+  const exactCodeMatches = shouldUseExactProductLookup(message, nextShoppingIntent) ? findExactCodeMatches(products, message) : [];
   if (exactCodeMatches.length > 0) {
     return {
       status: 200,
