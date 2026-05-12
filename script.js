@@ -35,6 +35,7 @@ const messages = document.querySelector("#messages");
 const form = document.querySelector("#chat-form");
 const input = document.querySelector("#chat-input");
 const cartCount = document.querySelector("#cart-count");
+const concierge = document.querySelector(".concierge");
 const salesEmail = document.body.dataset.salesEmail || "sales@example.com";
 
 const loadingMessages = [
@@ -785,10 +786,12 @@ async function init() {
         : `<p>Welcome back, ${escapeHtml(state.customerName)}. Tell me what you’re looking for, your budget, and any must-haves. I’ll recommend products from available stock and explain why they fit.</p>`
     );
   }
+  concierge?.classList.remove("is-loading");
   document.body.classList.add("config-ready");
 }
 
 init().catch((error) => {
+  concierge?.classList.remove("is-loading");
   document.body.classList.add("config-ready");
   addMessage("ai", `<p>The concierge could not load products. ${escapeHtml(error.message)}</p>`);
 });

@@ -245,6 +245,29 @@ h2 {
   padding-right: 4px;
 }
 
+.chat-loading {
+  display: none;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.concierge.is-loading {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.concierge.is-loading .chat-header,
+.concierge.is-loading .messages,
+.concierge.is-loading .quick-prompts,
+.concierge.is-loading .composer {
+  display: none;
+}
+
+.concierge.is-loading .chat-loading {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+}
+
 .message {
   max-width: 92%;
   border-radius: 8px;

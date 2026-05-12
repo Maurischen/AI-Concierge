@@ -23,7 +23,7 @@
         <section class="catalog-grid" id="catalog-grid" aria-label="Available stock"></section>
       </section>
 
-      <aside class="concierge" aria-label="AI shopping concierge">
+      <aside class="concierge is-loading" aria-label="AI shopping concierge">
         <div class="chat-header">
           <div>
             <p class="eyebrow">Live guidance</p>
@@ -33,6 +33,10 @@
         </div>
 
         <div class="messages" id="messages" aria-live="polite"></div>
+
+        <div class="chat-loading" aria-live="polite">
+          <p>Loading chat...</p>
+        </div>
 
         <div class="quick-prompts" aria-label="Example prompts">
           <button type="button" data-prompt="I need a laptop for gaming and design under $1500">Gaming + design</button>
