@@ -110,6 +110,25 @@ function isRealShopDomain(shopDomain) {
   return /\.myshopify\.com$/i.test(shopDomain) || /^[a-z0-9][a-z0-9-]*\.[a-z]{2,}$/i.test(shopDomain);
 }
 
+function productPageUrl(product) {
+  if (!isRealShopDomain(state.shopDomain)) return "";
+  if (product?.handle) return `https://${state.shopDomain}/products/${encodeURIComponent(product.handle)}`;
+  return `https://${state.shopDomain}/search?q=${encodeURIComponent(product?.name || "")}`;
+}
+
+function productActionsMarkup(product) {
+  const detailsUrl = productPageUrl(product);
+  const detailsLink = detailsUrl
+    ? `<a class="secondary-action" href="${escapeHtml(detailsUrl)}" target="_blank" rel="noopener noreferrer">View details</a>`
+    : "";
+  return `
+    <div class="product-actions">
+      <button type="button" data-add="${escapeHtml(product.variantId)}">Add to cart</button>
+      ${detailsLink}
+    </div>
+  `;
+}
+
 function numericShopifyId(gid) {
   return String(gid || "").split("/").pop();
 }
@@ -342,7 +361,7 @@ function renderCatalog(selectedIds = []) {
             <span class="price">${money(product.price)}</span>
             <span class="stock">${product.stock} in stock</span>
           </div>
-          <button type="button" data-add="${escapeHtml(product.variantId)}">Add to cart</button>
+          ${productActionsMarkup(product)}
         </article>
       `;
     })
@@ -388,7 +407,7 @@ function renderRecommendations(payload, originalText) {
           <ul class="reason-list">
             ${product.reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}
           </ul>
-          <button type="button" data-add="${escapeHtml(product.variantId)}">Add to cart</button>
+          ${productActionsMarkup(product)}
         </article>
       `;
     })
@@ -475,7 +494,7 @@ function renderComparison(text) {
             <li>${escapeHtml(product.stock)} in stock.</li>
             <li>${product.price === cheapest.price ? "Best price." : product.price === priciest.price ? "Most expensive option." : "Middle-price option."}</li>
           </ul>
-          <button type="button" data-add="${escapeHtml(product.variantId)}">Add to cart</button>
+          ${productActionsMarkup(product)}
         </article>
       `
     )

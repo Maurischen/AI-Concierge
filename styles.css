@@ -182,9 +182,17 @@ h2 {
   font-weight: 720;
 }
 
+.product-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .product-card button,
 .composer button,
 .recommendation button,
+.secondary-action,
 .quick-prompts button {
   border: 0;
   border-radius: 6px;
@@ -192,14 +200,29 @@ h2 {
   color: var(--button-text);
   padding: 10px 12px;
   font-weight: 760;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .product-card button:hover,
 .composer button:hover,
 .recommendation button:hover,
+.secondary-action:hover,
 .quick-prompts button:hover {
   background: var(--accent-dark);
   color: var(--button-text);
+}
+
+.secondary-action {
+  border: 1px solid rgba(0, 122, 106, 0.24);
+  background: #e8efef;
+  color: var(--ink);
+}
+
+.secondary-action:hover {
+  border-color: var(--accent-dark);
 }
 
 .concierge {
