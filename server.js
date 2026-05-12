@@ -258,7 +258,8 @@ function updateShoppingIntent(previousIntent, message) {
   if (previousIntent?.productType === "motherboard" && latestProductType === "ram" && motherboardRequirementPattern.test(latest)) {
     latestProductType = "motherboard";
   }
-  const productTypeChanged = latestProductType && previousIntent?.productType && latestProductType !== previousIntent.productType;
+  const startsNewRequest = /\b(also need|also looking|i also need|i also want|new request|another|next i need|now i need)\b/i.test(latest);
+  const productTypeChanged = startsNewRequest || (latestProductType && previousIntent?.productType && latestProductType !== previousIntent.productType);
   const baseIntent = productTypeChanged ? null : previousIntent;
   const productType = latestProductType || baseIntent?.productType || null;
   const latestSpecs = extractIntentSpecs(latest);
