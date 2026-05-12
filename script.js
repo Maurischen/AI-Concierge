@@ -20,6 +20,7 @@ const state = {
   conversation: [],
   customerLocation: null,
   shoppingIntent: null,
+  messageLog: [],
   customerName: sessionStorage.getItem("aiConciergeCustomerName") || "",
   awaitingName: !sessionStorage.getItem("aiConciergeCustomerName"),
   loadingMessageIndex: 0
@@ -119,7 +120,7 @@ function productPageUrl(product) {
 function productActionsMarkup(product) {
   const detailsUrl = productPageUrl(product);
   const detailsLink = detailsUrl
-    ? `<a class="secondary-action" href="${escapeHtml(detailsUrl)}" target="_blank" rel="noopener noreferrer">View details</a>`
+    ? `<a class="secondary-action" href="${escapeHtml(detailsUrl)}" target="_top">View details</a>`
     : "";
   return `
     <div class="product-actions">
@@ -312,6 +313,53 @@ function greetingPrefix() {
   return state.customerName ? `${state.customerName}, ` : "";
 }
 
+function chatStorageKey() {
+  return `aiConciergeChat:${state.shopDomain}:${state.sessionId}`;
+}
+
+function persistChatState() {
+  try {
+    sessionStorage.setItem(
+      chatStorageKey(),
+      JSON.stringify({
+        messageLog: state.messageLog.slice(-60),
+        conversation: state.conversation.slice(-16),
+        shoppingIntent: state.shoppingIntent,
+        lastRecommendations: state.lastRecommendations.slice(0, 3),
+        customerName: state.customerName,
+        awaitingName: state.awaitingName
+      })
+    );
+  } catch {
+    // Storage can fail in strict privacy modes; the chat should still work live.
+  }
+}
+
+function restoreChatState() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(chatStorageKey()) || "null");
+    if (!saved?.messageLog?.length) return false;
+    state.messageLog = saved.messageLog;
+    state.conversation = Array.isArray(saved.conversation) ? saved.conversation : [];
+    state.shoppingIntent = saved.shoppingIntent || null;
+    state.lastRecommendations = Array.isArray(saved.lastRecommendations) ? saved.lastRecommendations : [];
+    if (saved.customerName) {
+      state.customerName = saved.customerName;
+      state.awaitingName = false;
+    } else {
+      state.awaitingName = saved.awaitingName !== false;
+    }
+
+    messages.innerHTML = "";
+    for (const item of state.messageLog) {
+      addMessage(item.role, item.content, { persist: false });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function nextLoadingMessage() {
   const message = loadingMessages[state.loadingMessageIndex % loadingMessages.length];
   const tip = personalityTips[state.loadingMessageIndex % personalityTips.length];
@@ -368,12 +416,16 @@ function renderCatalog(selectedIds = []) {
     .join("");
 }
 
-function addMessage(role, content) {
+function addMessage(role, content, options = {}) {
   const node = document.createElement("article");
   node.className = `message ${role}`;
   node.innerHTML = content;
   messages.appendChild(node);
   messages.scrollTop = messages.scrollHeight;
+  if (options.persist === false) return;
+  state.messageLog.push({ role, content });
+  state.messageLog = state.messageLog.slice(-60);
+  persistChatState();
 }
 
 function renderRecommendations(payload, originalText) {
@@ -438,6 +490,7 @@ function renderRecommendations(payload, originalText) {
 
   state.lastRecommendations = items;
   renderCatalog(items.map((product) => product.variantId));
+  persistChatState();
 }
 
 function wantsComparison(text) {
@@ -565,11 +618,13 @@ async function handleCustomerNeed(text) {
   if (wantsComparison(text) && renderComparison(text)) {
     state.conversation.push({ role: "user", content: text });
     state.conversation.push({ role: "assistant", content: "Compared the most recent recommendations." });
+    persistChatState();
     return;
   }
 
   state.conversation.push({ role: "user", content: text });
-  addMessage("ai", `<p class="typing">${nextLoadingMessage()}</p>`);
+  persistChatState();
+  addMessage("ai", `<p class="typing">${nextLoadingMessage()}</p>`, { persist: false });
 
   try {
     if (wantsNearbyStore(text) && !state.customerLocation) {
@@ -594,6 +649,7 @@ async function handleCustomerNeed(text) {
     }
     if (payload.message) {
       state.conversation.push({ role: "assistant", content: payload.message });
+      persistChatState();
     }
   } catch (error) {
     messages.querySelector(".typing")?.closest(".message")?.remove();
@@ -603,7 +659,7 @@ async function handleCustomerNeed(text) {
 
 async function addToCart(variantId) {
   try {
-    addMessage("ai", `<p class="typing">${escapeHtml(greetingPrefix())}Preparing the Shopify cart handoff...</p>`);
+    addMessage("ai", `<p class="typing">${escapeHtml(greetingPrefix())}Preparing the Shopify cart handoff...</p>`, { persist: false });
     const payload = await api("/api/cart", {
       method: "POST",
       body: JSON.stringify({ variantId, quantity: 1, shop: state.shopDomain })
@@ -720,14 +776,19 @@ async function init() {
   fetchShopifyCart()
     .then(updateCartDisplay)
     .catch(() => {});
-  addMessage(
-    "ai",
-    state.awaitingName
-      ? `<p>${escapeHtml(payload.shop?.widgetConfig?.welcomeMessage || "Hi, I’m your AI Concierge. What should I call you while we shop?")}</p>`
-      : `<p>Welcome back, ${escapeHtml(state.customerName)}. Tell me what you’re looking for, your budget, and any must-haves. I’ll recommend products from available stock and explain why they fit.</p>`
-  );
+  const restored = restoreChatState();
+  if (!restored) {
+    addMessage(
+      "ai",
+      state.awaitingName
+        ? `<p>${escapeHtml(payload.shop?.widgetConfig?.welcomeMessage || "Hi, I’m your AI Concierge. What should I call you while we shop?")}</p>`
+        : `<p>Welcome back, ${escapeHtml(state.customerName)}. Tell me what you’re looking for, your budget, and any must-haves. I’ll recommend products from available stock and explain why they fit.</p>`
+    );
+  }
+  document.body.classList.add("config-ready");
 }
 
 init().catch((error) => {
+  document.body.classList.add("config-ready");
   addMessage("ai", `<p>The concierge could not load products. ${escapeHtml(error.message)}</p>`);
 });

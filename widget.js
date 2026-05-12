@@ -22,6 +22,22 @@
     }
   }
 
+  function rememberOpenState(open) {
+    try {
+      window.sessionStorage.setItem("aiConciergeWidgetOpen", open ? "true" : "false");
+    } catch {
+      // Ignore storage failures; the widget can still be opened manually.
+    }
+  }
+
+  function shouldRestoreOpenState() {
+    try {
+      return window.sessionStorage.getItem("aiConciergeWidgetOpen") === "true";
+    } catch {
+      return false;
+    }
+  }
+
   if (document.querySelector("[data-ai-concierge-widget]")) return;
   document.querySelector("#ai-concierge-test")?.remove();
 
@@ -121,9 +137,14 @@
 
   const button = root.querySelector(".ai-concierge-button");
   const iframe = root.querySelector("iframe");
+  if (shouldRestoreOpenState()) {
+    root.classList.add("open");
+    button.setAttribute("aria-expanded", "true");
+  }
   button.addEventListener("click", () => {
     const open = root.classList.toggle("open");
     button.setAttribute("aria-expanded", String(open));
+    rememberOpenState(open);
   });
 
   window.addEventListener("message", async (event) => {
