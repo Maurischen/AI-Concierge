@@ -7,6 +7,20 @@
   const fallbackColor = currentScript?.dataset.themeColor || "#007a6a";
   const fallbackHoverColor = currentScript?.dataset.buttonHoverColor || "#005f53";
   const fallbackTextColor = currentScript?.dataset.buttonTextColor || "#ffffff";
+  const routesRoot = window.Shopify?.routes?.root || "/";
+
+  function getSessionId() {
+    const key = "aiConciergeSessionId";
+    try {
+      const existing = window.localStorage.getItem(key);
+      if (existing) return existing;
+      const next = `aic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      window.localStorage.setItem(key, next);
+      return next;
+    } catch {
+      return `aic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+  }
 
   if (document.querySelector("[data-ai-concierge-widget]")) return;
   document.querySelector("#ai-concierge-test")?.remove();
@@ -118,7 +132,8 @@
     if (data.type !== "ai-concierge:add-cart") return;
 
     try {
-      const addResponse = await fetch("/cart/add.js", {
+      const sessionId = data.sessionId || getSessionId();
+      const addResponse = await fetch(`${routesRoot}cart/add.js`, {
         method: "POST",
         credentials: "same-origin",
         headers: {
@@ -126,8 +141,16 @@
           Accept: "application/json"
         },
         body: JSON.stringify({
-          id: Number(data.variantId),
-          quantity: Number(data.quantity || 1)
+          items: [
+            {
+              id: Number(data.variantId),
+              quantity: Number(data.quantity || 1),
+              properties: {
+                _ai_concierge: "true",
+                _ai_concierge_session: sessionId
+              }
+            }
+          ]
         })
       });
 
@@ -136,7 +159,23 @@
         throw new Error(error.description || error.message || "Shopify could not add this item to cart.");
       }
 
-      const cartResponse = await fetch("/cart.js", {
+      await fetch(`${routesRoot}cart/update.js`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          attributes: {
+            ai_concierge__: "true",
+            ai_concierge_session__: sessionId,
+            ai_concierge_added_at__: new Date().toISOString()
+          }
+        })
+      }).catch(() => null);
+
+      const cartResponse = await fetch(`${routesRoot}cart.js`, {
         credentials: "same-origin",
         headers: {
           Accept: "application/json"

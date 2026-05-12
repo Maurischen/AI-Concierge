@@ -121,7 +121,7 @@ redirect_urls = [
 ]
 
 [access_scopes]
-scopes = "read_products,read_inventory,read_locations,read_files"
+scopes = "read_products,read_inventory,read_locations,read_files,read_orders"
 
 [build]
 include_config_on_deploy = true
@@ -133,7 +133,7 @@ The same values must be set in Render:
 SHOPIFY_API_KEY=your Shopify Partner app API key
 SHOPIFY_API_SECRET=your Shopify Partner app API secret
 SHOPIFY_APP_URL=https://your-render-url.onrender.com
-SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files
+SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files,read_orders
 ```
 
 Then deploy the app extension:
@@ -148,7 +148,7 @@ After Shopify CLI finishes, manually enable the embed in Shopify Admin:
 Online Store > Themes > Customize > App embeds > AI Concierge
 ```
 
-The embed first shows a visible `AI Concierge Loaded` marker. If that marker appears, the theme extension is active. Once `widget.js` loads, the marker is removed and the floating chat launcher appears.
+The embed loads the floating chat launcher from the deployed `/widget.js` script.
 
 ## Admin UI
 
@@ -164,7 +164,7 @@ Render must have these Shopify app values set:
 SHOPIFY_API_KEY
 SHOPIFY_API_SECRET
 SHOPIFY_APP_URL=https://your-render-url.onrender.com
-SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files
+SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files,read_orders
 ```
 
 In the Shopify Partner app setup, add this redirect URL:
@@ -200,18 +200,21 @@ For automatic updates, register these Shopify webhooks against your deployed app
 - `products/update` -> `/api/shopify/webhooks/products/update`
 - `products/delete` -> `/api/shopify/webhooks/products/delete`
 - `inventory_levels/update` -> `/api/shopify/webhooks/inventory-levels/update`
+- `orders/create` -> `/api/shopify/webhooks/orders/create`
 
 Set `SHOPIFY_WEBHOOK_SECRET` in production so webhook requests are verified before they update the local catalog cache.
 
 Your Shopify app/custom app needs these Admin API scopes:
 
 ```text
-read_products,read_inventory,read_locations,read_files
+read_products,read_inventory,read_locations,read_files,read_orders
 ```
 
 `read_inventory` lets the app read inventory levels by variant. `read_locations` lets it read the location name/address attached to those inventory levels, which is what powers questions like "is this available at the Windhoek branch?" If you add `read_locations` after the app was already installed, reinstall or re-authorize the Shopify app/custom app token, update the token in Render, redeploy if needed, then run:
 
 `read_files` lets the admin UI list image files from Shopify Files so you can choose a stored logo without pasting a URL manually.
+
+`read_orders` lets the app receive order-created webhooks so it can report when a customer who added items through AI Concierge completed a purchase.
 
 Only active Shopify locations with `fulfillsOnlineOrders: true` are used for customer-facing availability, so supplier/internal locations are not shown as pickup or nearby store options.
 

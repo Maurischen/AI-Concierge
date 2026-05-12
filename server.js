@@ -8,6 +8,7 @@ import {
   listShops,
   loadCatalog,
   normalizeShopDomain,
+  recordConciergeOrder,
   removeCatalogProduct,
   updateInventoryLevel,
   upsertShop,
@@ -283,7 +284,7 @@ function appUrl(request) {
 }
 
 function appScopes() {
-  return process.env.SHOPIFY_SCOPES || "read_products,read_inventory,read_locations,read_files";
+  return process.env.SHOPIFY_SCOPES || "read_products,read_inventory,read_locations,read_files,read_orders";
 }
 
 function verifyShopifyHmac(params) {
@@ -1039,6 +1040,22 @@ async function handleApi(request, response) {
       available: inventoryLevel.available
     });
 
+    sendJson(response, 200, { ok: true, shop: webhookShop, ...result });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/shopify/webhooks/orders/create") {
+    const rawBody = await readRawBody(request);
+    const hmac = request.headers["x-shopify-hmac-sha256"];
+    const webhookShop = normalizeShopDomain(request.headers["x-shopify-shop-domain"] || requestedShop);
+
+    if (!verifyShopifyWebhook(rawBody, hmac)) {
+      sendJson(response, 401, { error: "Invalid Shopify webhook signature." });
+      return;
+    }
+
+    const order = JSON.parse(rawBody.toString("utf8"));
+    const result = await recordConciergeOrder(order, webhookShop);
     sendJson(response, 200, { ok: true, shop: webhookShop, ...result });
     return;
   }

@@ -1,5 +1,19 @@
+function getOrCreateSessionId() {
+  const key = "aiConciergeSessionId";
+  try {
+    const existing = window.localStorage.getItem(key);
+    if (existing) return existing;
+    const next = `aic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    window.localStorage.setItem(key, next);
+    return next;
+  } catch {
+    return `aic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
 const state = {
   shopDomain: new URLSearchParams(window.location.search).get("shop") || document.currentScript?.dataset.shop || "demo",
+  sessionId: getOrCreateSessionId(),
   products: [],
   cartCount: 0,
   lastRecommendations: [],
@@ -142,7 +156,9 @@ function requestStorefrontCartAdd(numericVariantId, quantity = 1) {
         type: "ai-concierge:add-cart",
         requestId,
         variantId: Number(numericVariantId),
-        quantity
+        quantity,
+        sessionId: state.sessionId,
+        customerName: state.customerName || ""
       },
       "*"
     );
@@ -191,8 +207,16 @@ async function addToShopifyAjaxCart(product, variantId, quantity = 1) {
       Accept: "application/json"
     },
     body: JSON.stringify({
-      id: Number(numericVariantId),
-      quantity
+      items: [
+        {
+          id: Number(numericVariantId),
+          quantity,
+          properties: {
+            _ai_concierge: "true",
+            _ai_concierge_session: state.sessionId
+          }
+        }
+      ]
     })
   });
 
@@ -200,6 +224,22 @@ async function addToShopifyAjaxCart(product, variantId, quantity = 1) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.description || error.message || "Shopify could not add this item to cart.");
   }
+
+  await fetch(`https://${state.shopDomain}/cart/update.js`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      attributes: {
+        ai_concierge__: "true",
+        ai_concierge_session__: state.sessionId,
+        ai_concierge_added_at__: new Date().toISOString()
+      }
+    })
+  }).catch(() => null);
 
   return fetchShopifyCart();
 }

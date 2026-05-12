@@ -23,6 +23,10 @@ const webhookSubscriptions = [
   {
     topic: "INVENTORY_LEVELS_UPDATE",
     path: "/api/shopify/webhooks/inventory-levels/update"
+  },
+  {
+    topic: "ORDERS_CREATE",
+    path: "/api/shopify/webhooks/orders/create"
   }
 ];
 
