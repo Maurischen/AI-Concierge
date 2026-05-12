@@ -121,7 +121,7 @@ redirect_urls = [
 ]
 
 [access_scopes]
-scopes = "read_products,read_inventory,read_locations,read_files,read_orders"
+scopes = "read_products,read_inventory,read_locations,read_files,read_orders,write_orders"
 
 [build]
 include_config_on_deploy = true
@@ -133,7 +133,8 @@ The same values must be set in Render:
 SHOPIFY_API_KEY=your Shopify Partner app API key
 SHOPIFY_API_SECRET=your Shopify Partner app API secret
 SHOPIFY_APP_URL=https://your-render-url.onrender.com
-SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files,read_orders
+SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files,read_orders,write_orders
+AI_CONCIERGE_ORDER_TAG=AI Concierge
 ```
 
 Then deploy the app extension:
@@ -164,7 +165,7 @@ Render must have these Shopify app values set:
 SHOPIFY_API_KEY
 SHOPIFY_API_SECRET
 SHOPIFY_APP_URL=https://your-render-url.onrender.com
-SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files,read_orders
+SHOPIFY_SCOPES=read_products,read_inventory,read_locations,read_files,read_orders,write_orders
 ```
 
 In the Shopify Partner app setup, add this redirect URL:
@@ -207,7 +208,7 @@ Set `SHOPIFY_WEBHOOK_SECRET` in production so webhook requests are verified befo
 Your Shopify app/custom app needs these Admin API scopes:
 
 ```text
-read_products,read_inventory,read_locations,read_files,read_orders
+read_products,read_inventory,read_locations,read_files,read_orders,write_orders
 ```
 
 `read_inventory` lets the app read inventory levels by variant. `read_locations` lets it read the location name/address attached to those inventory levels, which is what powers questions like "is this available at the Windhoek branch?" If you add `read_locations` after the app was already installed, reinstall or re-authorize the Shopify app/custom app token, update the token in Render, redeploy if needed, then run:
@@ -215,6 +216,8 @@ read_products,read_inventory,read_locations,read_files,read_orders
 `read_files` lets the admin UI list image files from Shopify Files so you can choose a stored logo without pasting a URL manually.
 
 `read_orders` lets the app receive order-created webhooks so it can report when a customer who added items through AI Concierge completed a purchase.
+
+`write_orders` lets the app add the `AI Concierge` tag to attributed orders so they are visible and searchable on the Shopify Orders page.
 
 Only active Shopify locations with `fulfillsOnlineOrders: true` are used for customer-facing availability, so supplier/internal locations are not shown as pickup or nearby store options.
 

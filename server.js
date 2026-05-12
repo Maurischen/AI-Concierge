@@ -284,7 +284,38 @@ function appUrl(request) {
 }
 
 function appScopes() {
-  return process.env.SHOPIFY_SCOPES || "read_products,read_inventory,read_locations,read_files,read_orders";
+  return process.env.SHOPIFY_SCOPES || "read_products,read_inventory,read_locations,read_files,read_orders,write_orders";
+}
+
+async function tagConciergeOrder(order, shopDomain) {
+  const orderId = order.admin_graphql_api_id || (order.id ? `gid://shopify/Order/${order.id}` : null);
+  if (!orderId) return { tagged: false, reason: "Order webhook did not include an order ID." };
+
+  const shop = await getShop(shopDomain);
+  if (!shop?.accessToken) return { tagged: false, reason: "Shop is missing an OAuth access token." };
+
+  const tag = process.env.AI_CONCIERGE_ORDER_TAG || "AI Concierge";
+  const mutation = `#graphql
+    mutation AddConciergeOrderTag($id: ID!, $tags: [String!]!) {
+      tagsAdd(id: $id, tags: $tags) {
+        node {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const data = await shopifyGraphql(mutation, { id: orderId, tags: [tag] }, shop);
+  const errors = data.tagsAdd?.userErrors || [];
+  if (errors.length > 0) {
+    return { tagged: false, reason: errors.map((error) => error.message).join("; ") };
+  }
+
+  return { tagged: true, tag };
 }
 
 function verifyShopifyHmac(params) {
@@ -1056,7 +1087,16 @@ async function handleApi(request, response) {
 
     const order = JSON.parse(rawBody.toString("utf8"));
     const result = await recordConciergeOrder(order, webhookShop);
-    sendJson(response, 200, { ok: true, shop: webhookShop, ...result });
+    let tagResult = { tagged: false };
+    if (result.tracked) {
+      try {
+        tagResult = await tagConciergeOrder(order, webhookShop);
+      } catch (error) {
+        console.warn(`Could not tag AI Concierge order for ${webhookShop}: ${error.message}`);
+        tagResult = { tagged: false, reason: error.message };
+      }
+    }
+    sendJson(response, 200, { ok: true, shop: webhookShop, ...result, ...tagResult });
     return;
   }
 
