@@ -45,6 +45,9 @@ function normalizeIntentText(value = "") {
 
 function extractProductType(text) {
   const raw = String(text || "").toLowerCase();
+  if (/\b(?:work with|works with|compatible with|for)\b.*\b(cable|cord|lead|display\s?port|displayport|hdmi|vga|usb[- ]?c|type[- ]?c)\b|\b(cable|cord|lead|display\s?port|displayport|hdmi|vga|usb[- ]?c|type[- ]?c)\b.*\b(?:work with|works with|compatible with|for)\b/.test(raw)) {
+    return "cable";
+  }
   if (/\b(upgrade|replace|add|more|compatible|work with|for)\b.*\b(ram|memory)\b|\b(ram|memory)\b.*\b(for|compatible|work with|upgrade)\b/.test(raw)) {
     return "ram";
   }
@@ -151,9 +154,16 @@ function shouldUseExactProductLookup(text, intent = {}) {
   const looksLikeOwnedDeviceContext =
     /\b(i have|i own|my current|currently have|currently using|running|it has|it uses|with)\b/i.test(terms) &&
     /\b(upgrade|upgrading|compatible|compatibility|work with|works with|for my|desktop|pc|computer|laptop|notebook|motherboard|optiplex|prodesk|thinkcentre|thinkpad|latitude|inspiron|pavilion|elitebook|vivobook|pulse)\b/i.test(terms);
+  const looksLikeCompatibilityQuestion =
+    /\b(will|would|can|could|does|is)\b.{0,80}\b(work with|works with|compatible with|fit|support|supports)\b/i.test(terms) ||
+    /\b(work with|works with|compatible with|for my|for the|for a|for an)\b/i.test(terms);
   const requestedUpgradePart = ["ram", "ssd", "hdd", "cpu", "graphics card", "psu"].includes(productType);
+  const requestedAccessory = ["cable", "charger", "hub", "bag"].includes(productType);
 
   if (looksLikeOwnedDeviceContext && (requestedUpgradePart || /\b(ram|memory|ssd|hdd|hard drive|cpu|processor|graphics card|gpu|power supply|psu)\b/i.test(terms))) {
+    return false;
+  }
+  if ((looksLikeOwnedDeviceContext || looksLikeCompatibilityQuestion) && (requestedAccessory || /\b(cable|cord|lead|display\s?port|displayport|hdmi|vga|usb[- ]?c|type[- ]?c|adapter|adaptor|charger|hub|dock)\b/i.test(terms))) {
     return false;
   }
 
