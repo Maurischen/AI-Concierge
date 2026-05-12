@@ -9,6 +9,7 @@
   const fallbackTextColor = currentScript?.dataset.buttonTextColor || "#ffffff";
 
   if (document.querySelector("[data-ai-concierge-widget]")) return;
+  document.querySelector("#ai-concierge-test")?.remove();
 
   const root = document.createElement("div");
   root.dataset.aiConciergeWidget = "true";
