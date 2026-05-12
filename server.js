@@ -313,7 +313,13 @@ function shoppingIntentToText(intent) {
   if (!intent?.productType) return "";
   return [
     intent.sizes?.join(" "),
-    intent.deviceModel ? `for ${intent.deviceModel}${intent.deviceKind ? ` ${intent.deviceKind}` : ""}` : intent.deviceKind ? `for ${intent.deviceKind}` : null,
+    intent.productType === "cable" && intent.deviceModel
+      ? `compatible with existing ${intent.deviceModel}${intent.deviceKind ? ` ${intent.deviceKind}` : ""}`
+      : intent.deviceModel
+        ? `for ${intent.deviceModel}${intent.deviceKind ? ` ${intent.deviceKind}` : ""}`
+        : intent.deviceKind
+          ? `for ${intent.deviceKind}`
+          : null,
     intent.modelTokens?.join(" "),
     intent.specs?.join(" "),
     intent.ramTargetGb ? `target total ${intent.ramTargetGb}gb ram` : null,
