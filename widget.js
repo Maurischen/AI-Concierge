@@ -26,11 +26,18 @@
       bottom: 18px;
       z-index: 2147483000;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 140ms ease;
       --ai-concierge-color: ${fallbackColor};
       --ai-concierge-hover-color: ${fallbackHoverColor};
       --ai-concierge-text-color: ${fallbackTextColor};
       --ai-concierge-width: 390px;
       --ai-concierge-height: 680px;
+    }
+    [data-ai-concierge-widget][data-ready="true"] {
+      opacity: 1;
+      visibility: visible;
     }
     [data-ai-concierge-position="bottom-right"] {
       right: 18px;
@@ -95,7 +102,6 @@
 
   document.head.appendChild(style);
   document.body.appendChild(root);
-  document.querySelector("#ai-concierge-test")?.remove();
   root.dataset.aiConciergePosition = fallbackPosition;
 
   const button = root.querySelector(".ai-concierge-button");
@@ -179,5 +185,8 @@
       root.style.setProperty("--ai-concierge-width", `${widgetConfig.panelWidth || 390}px`);
       root.style.setProperty("--ai-concierge-height", `${widgetConfig.panelHeight || 680}px`);
     })
-    .catch(() => {});
+    .catch(() => {})
+    .finally(() => {
+      root.dataset.ready = "true";
+    });
 })();
