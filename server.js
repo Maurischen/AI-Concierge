@@ -81,13 +81,68 @@ function extractModelTokens(text) {
   return [
     ...new Set(
       terms
-        .match(/\b[a-z]{1,6}\d{2,6}[a-z0-9-]*\b|\b\d{3,6}[a-z]?\b/g)
+        .match(/\b[a-z]{1,12}[a-z0-9-]*\d[a-z0-9-]*\b|\b\d{3,6}[a-z]?\b/g)
         ?.filter((token) => {
           const nearby = terms.slice(Math.max(0, terms.indexOf(token) - 14), terms.indexOf(token) + token.length + 14);
           return !/\b(rand|zar|budget|under|below|around|about|mah|gb|tb|w)\b/.test(nearby);
         }) || []
     )
   ];
+}
+
+function normalizeProductCode(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function extractExactProductCodes(text) {
+  const terms = String(text || "").toLowerCase().replace(/(\d)\s+(\d{3})/g, "$1$2");
+  return [
+    ...new Set(
+      terms
+        .match(/\b[a-z]{1,12}[a-z0-9-]*\d[a-z0-9-]*\b|\b\d{3,6}[a-z]?\b/g)
+        ?.filter((token) => {
+          const nearby = terms.slice(Math.max(0, terms.indexOf(token) - 16), terms.indexOf(token) + token.length + 16);
+          return !/\b(rand|zar|budget|under|below|around|about|mah|gb|tb|w|hz|mhz|ghz|gbps|mbps)\b/.test(nearby);
+        })
+        .map(normalizeProductCode)
+        .filter((token) => token.length >= 4) || []
+    )
+  ];
+}
+
+function productCodeHaystack(product) {
+  return [
+    product.name,
+    product.handle,
+    product.searchText,
+    ...(product.specs || []),
+    ...(product.tags || []),
+    ...(product.variants || []).flatMap((variant) => [variant.sku, variant.title, variant.id, variant.numericId])
+  ]
+    .filter(Boolean)
+    .map(normalizeProductCode)
+    .join(" ");
+}
+
+function findExactCodeMatches(products, text) {
+  const codes = extractExactProductCodes(text);
+  if (codes.length === 0) return [];
+  return products
+    .filter((product) => product.stock > 0)
+    .filter((product) => {
+      const haystack = productCodeHaystack(product);
+      return codes.some((code) => haystack.includes(code));
+    })
+    .map((product) => ({
+      ...product,
+      reasons: [
+        `Matches the requested product code/SKU ${codes.map((code) => code.toUpperCase()).join(", ")}.`,
+        `Available now with ${product.stock} in stock.`,
+        "Opening the product details page will show the full Shopify specs and images."
+      ]
+    }));
 }
 
 function extractDeviceModelPhrase(text) {
@@ -682,6 +737,22 @@ async function buildChatResponse({ message, shopDomain, history = [], customerLo
     shopConfig.salesEmail = process.env.SALES_EMAIL;
   }
   const nextShoppingIntent = updateShoppingIntent(shoppingIntent, message);
+  const exactCodeMatches = findExactCodeMatches(products, message);
+  if (exactCodeMatches.length > 0) {
+    return {
+      status: 200,
+      payload: {
+        shop: shopConfig,
+        type: "recommendations",
+        source: "exact-code",
+        message: "I found an exact in-stock match for that product code in the live catalog.",
+        recommendations: exactCodeMatches.slice(0, 3),
+        suggestions: [],
+        compatibilitySensitive: false,
+        shoppingIntent: nextShoppingIntent
+      }
+    };
+  }
 
   try {
     const agentResponse = await runShoppingAgent({

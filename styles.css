@@ -397,10 +397,6 @@ textarea:focus {
   background: var(--panel);
 }
 
-.widget-mode:not(.config-ready) .app-shell {
-  visibility: hidden;
-}
-
 .widget-mode .app-shell {
   display: block;
   min-height: 100vh;
