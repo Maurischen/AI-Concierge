@@ -1219,6 +1219,42 @@ async function handleApi(request, response) {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/debug/promotions") {
+    const products = await loadCatalog(requestedShop);
+    const promoted = products
+      .filter((product) => product.promotion?.active)
+      .slice(0, 50)
+      .map((product) => ({
+        name: product.name,
+        sku: product.sku,
+        handle: product.handle,
+        normalPrice: product.promotion.normalPrice,
+        discountedPrice: product.promotion.discountedPrice,
+        savings: product.promotion.savings,
+        label: product.promotion.label,
+        source: product.promotion.source,
+        priority: product.promotion.priority,
+        stock: product.stock,
+        activePromoVariants: (product.variants || [])
+          .filter((variant) => variant.promotion?.active)
+          .map((variant) => ({
+            title: variant.title,
+            sku: variant.sku,
+            price: variant.price,
+            promotion: variant.promotion,
+            stock: variant.stock
+          }))
+      }));
+
+    sendJson(response, 200, {
+      shop: requestedShop,
+      productCount: products.length,
+      promotedCount: products.filter((product) => product.promotion?.active).length,
+      promoted
+    });
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/chat") {
     const { message, shop, history = [], customerLocation = null, shoppingIntent = null } = await readJson(request);
     const shopDomain = normalizeShopDomain(shop || requestedShop);
