@@ -47,15 +47,14 @@ const query = `#graphql
             price
             inventoryQuantity
             metafields(identifiers: [
-              { namespace: "custom", key: "promo_display_enabled" }
-              { namespace: "custom", key: "promo_display_type" }
-              { namespace: "custom", key: "promo_discount_amount" }
-              { namespace: "custom", key: "promo_discount_percent" }
-              { namespace: "custom", key: "promo_label" }
-              { namespace: "custom", key: "promo_source" }
+              { namespace: "custom", key: "promo_display_enabled" },
+              { namespace: "custom", key: "promo_display_type" },
+              { namespace: "custom", key: "promo_discount_amount" },
+              { namespace: "custom", key: "promo_discount_percent" },
+              { namespace: "custom", key: "promo_label" },
+              { namespace: "custom", key: "promo_source" },
               { namespace: "custom", key: "promo_priority" }
             ]) {
-              namespace
               key
               value
               type
