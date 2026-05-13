@@ -176,6 +176,27 @@ h2 {
   font-weight: 820;
 }
 
+.promo-price {
+  display: grid;
+  gap: 2px;
+}
+
+.normal-price {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-decoration: line-through;
+}
+
+.promo-label,
+.sku {
+  color: var(--accent-dark);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 780;
+  margin-top: 2px;
+}
+
 .stock {
   color: var(--accent-dark);
   font-size: 0.82rem;

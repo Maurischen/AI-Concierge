@@ -131,6 +131,18 @@ function productActionsMarkup(product) {
   `;
 }
 
+function priceMarkup(product) {
+  if (!product?.promotion?.active) return `<strong>${money(product.price)}</strong>`;
+  const label = product.promotion.label || "Promotion";
+  return `
+    <span class="promo-price">
+      <span class="normal-price">${money(product.promotion.normalPrice || product.price)}</span>
+      <strong>${money(product.promotion.discountedPrice)}</strong>
+      <span class="promo-label">${escapeHtml(label)}</span>
+    </span>
+  `;
+}
+
 function numericShopifyId(gid) {
   return String(gid || "").split("/").pop();
 }
@@ -407,7 +419,7 @@ function renderCatalog(selectedIds = []) {
           </div>
           <p>${product.specs.map(escapeHtml).join(" / ")}</p>
           <div class="product-meta">
-            <span class="price">${money(product.price)}</span>
+            <span class="price">${priceMarkup(product)}</span>
             <span class="stock">${product.stock} in stock</span>
           </div>
           ${productActionsMarkup(product)}
@@ -453,7 +465,8 @@ function renderRecommendations(payload, originalText) {
           <div class="recommendation-header">
             <div>
               <h3>${escapeHtml(product.name)}</h3>
-              <strong>${money(product.price)}</strong>
+              ${priceMarkup(product)}
+              ${product.sku ? `<span class="sku">SKU ${escapeHtml(product.sku)}</span>` : ""}
             </div>
             <span class="fit-label">${label}</span>
           </div>

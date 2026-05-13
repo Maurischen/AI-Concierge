@@ -25,6 +25,18 @@ const webhookSubscriptions = [
     path: "/api/shopify/webhooks/inventory-levels/update"
   },
   {
+    topic: "METAFIELDS_CREATE",
+    path: "/api/shopify/webhooks/metafields/update"
+  },
+  {
+    topic: "METAFIELDS_UPDATE",
+    path: "/api/shopify/webhooks/metafields/update"
+  },
+  {
+    topic: "METAFIELDS_DELETE",
+    path: "/api/shopify/webhooks/metafields/update"
+  },
+  {
     topic: "ORDERS_CREATE",
     path: "/api/shopify/webhooks/orders/create"
   }

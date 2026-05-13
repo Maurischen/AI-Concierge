@@ -20,7 +20,7 @@ import { runShoppingAgent } from "./lib/ai-agent.js";
 import { rankRecommendationsWithOpenAI, researchCompatibilityWithWeb } from "./lib/openai.js";
 import { getQualificationQuestions, isRelevantProductForRequest, needsClarification, recommendProducts, suggestSimilarProducts } from "./lib/recommendations.js";
 import { productMatchesRequestedIntents, requestedIntentNames } from "./lib/product-intents.js";
-import { normalizeWebhookProduct, shopifyGraphql, verifyShopifyWebhook } from "./lib/shopify.js";
+import { normalizeAdminProduct, normalizeWebhookProduct, shopifyGraphql, verifyShopifyWebhook } from "./lib/shopify.js";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const port = Number(process.env.PORT || 5174);
@@ -146,6 +146,104 @@ function findExactCodeMatches(products, text) {
         "Opening the product details page will show the full Shopify specs and images."
       ]
     }));
+}
+
+const adminProductForConciergeQuery = `#graphql
+  query ProductForConcierge($id: ID!) {
+    product(id: $id) {
+      id
+      title
+      handle
+      vendor
+      productType
+      tags
+      descriptionHtml
+      totalInventory
+      collections(first: 10) {
+        nodes {
+          title
+          handle
+        }
+      }
+      metafields(first: 30) {
+        nodes {
+          namespace
+          key
+          value
+          type
+        }
+      }
+      featuredMedia {
+        preview {
+          image {
+            url
+          }
+        }
+      }
+      variants(first: 25) {
+        nodes {
+          id
+          legacyResourceId
+          title
+          sku
+          price
+          inventoryQuantity
+          metafields(identifiers: [
+            { namespace: "custom", key: "promo_display_enabled" }
+            { namespace: "custom", key: "promo_display_type" }
+            { namespace: "custom", key: "promo_discount_amount" }
+            { namespace: "custom", key: "promo_discount_percent" }
+            { namespace: "custom", key: "promo_label" }
+            { namespace: "custom", key: "promo_source" }
+            { namespace: "custom", key: "promo_priority" }
+          ]) {
+            namespace
+            key
+            value
+            type
+          }
+          inventoryItem {
+            id
+            inventoryLevels(first: 10) {
+              nodes {
+                location {
+                  id
+                  name
+                  fulfillsOnlineOrders
+                  isActive
+                  address {
+                    address1
+                    address2
+                    city
+                    province
+                    zip
+                    country
+                    latitude
+                    longitude
+                  }
+                }
+                quantities(names: ["available"]) {
+                  name
+                  quantity
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+async function fetchAdminProductForConcierge(productId, shopDomain) {
+  const shop =
+    (await getShop(shopDomain)) ||
+    (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN
+      ? { shopDomain, accessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN }
+      : null);
+  if (!shop?.accessToken || !productId) return null;
+  const data = await shopifyGraphql(adminProductForConciergeQuery, { id: productId }, shop);
+  return data.product ? normalizeAdminProduct(data.product) : null;
 }
 
 function shouldUseExactProductLookup(text, intent = {}) {
@@ -340,13 +438,17 @@ function budgetFromContext(text, intent = {}) {
   return value ? Number(value) : null;
 }
 
+function effectiveProductPrice(product) {
+  return product?.promotion?.active ? Number(product.promotion.discountedPrice || product.price || 0) : Number(product.price || 0);
+}
+
 function responseRespectsOriginalRequest(payload, text, intent = {}) {
   if (!payload || payload.type !== "recommendations") return true;
   const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations : [];
   if (recommendations.length === 0) return false;
   const budget = budgetFromContext(text, intent);
   return recommendations.every((product) => {
-    if (budget && Number(product.price || 0) > budget) return false;
+    if (budget && effectiveProductPrice(product) > budget) return false;
     return isRelevantProductForRequest(product, text);
   });
 }
@@ -355,7 +457,7 @@ function filterResponseToOriginalRequest(payload, text, intent = {}) {
   if (!payload || payload.type !== "recommendations") return payload;
   const budget = budgetFromContext(text, intent);
   const recommendations = (payload.recommendations || []).filter((product) => {
-    if (budget && Number(product.price || 0) > budget) return false;
+    if (budget && effectiveProductPrice(product) > budget) return false;
     return isRelevantProductForRequest(product, text);
   });
 
@@ -1108,6 +1210,7 @@ async function handleApi(request, response) {
         name: product.name,
         category: product.category,
         price: product.price,
+        promotion: product.promotion || null,
         stock: product.stock,
         specs: product.specs,
         tags: product.tags,
@@ -1176,7 +1279,14 @@ async function handleApi(request, response) {
       return;
     }
 
-    const product = normalizeWebhookProduct(JSON.parse(rawBody.toString("utf8")));
+    const webhookProduct = JSON.parse(rawBody.toString("utf8"));
+    const productId =
+      webhookProduct.admin_graphql_api_id ||
+      (webhookProduct.id ? `gid://shopify/Product/${webhookProduct.id}` : null);
+    const product = (await fetchAdminProductForConcierge(productId, webhookShop).catch((error) => {
+      console.warn(`Could not hydrate webhook product ${productId}: ${error.message}`);
+      return null;
+    })) || normalizeWebhookProduct(webhookProduct);
     if (!product) {
       sendJson(response, 200, { ok: true, skipped: true });
       return;
@@ -1184,6 +1294,42 @@ async function handleApi(request, response) {
 
     await upsertCatalogProduct(product, webhookShop);
     sendJson(response, 200, { ok: true, shop: webhookShop, productId: product.id });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/shopify/webhooks/metafields/update") {
+    const rawBody = await readRawBody(request);
+    const hmac = request.headers["x-shopify-hmac-sha256"];
+    const webhookShop = normalizeShopDomain(request.headers["x-shopify-shop-domain"] || requestedShop);
+
+    if (!verifyShopifyWebhook(rawBody, hmac)) {
+      sendJson(response, 401, { error: "Invalid Shopify webhook signature." });
+      return;
+    }
+
+    const metafield = JSON.parse(rawBody.toString("utf8"));
+    if (metafield.namespace !== "custom" || !String(metafield.key || "").startsWith("promo_")) {
+      sendJson(response, 200, { ok: true, skipped: true, reason: "Not an AI Concierge promo metafield." });
+      return;
+    }
+
+    const ownerId = String(metafield.owner_id || metafield.ownerId || "");
+    const products = await loadCatalog(webhookShop);
+    const cachedProduct = products.find((product) =>
+      (product.variants || []).some((variant) => variant.numericId === ownerId || String(variant.id || "").endsWith(`/${ownerId}`))
+    );
+
+    if (!cachedProduct) {
+      sendJson(response, 200, { ok: true, skipped: true, reason: "Promo metafield owner was not in cached catalog." });
+      return;
+    }
+
+    const product = await fetchAdminProductForConcierge(cachedProduct.id, webhookShop).catch((error) => {
+      console.warn(`Could not refresh promo product ${cachedProduct.id}: ${error.message}`);
+      return null;
+    });
+    if (product) await upsertCatalogProduct(product, webhookShop);
+    sendJson(response, 200, { ok: true, shop: webhookShop, productId: cachedProduct.id, refreshed: Boolean(product) });
     return;
   }
 
